@@ -37,6 +37,24 @@ class Webslinger{
         }, false);
        
     };
+
+    interval = {
+        active : new Set(),
+        make:(...args)=>{
+            var newInterval = setInterval(...args);
+            this.interval.active.add(newInterval);
+            return newInterval;
+        },
+        clear:(id)=>{
+            this.interval.active.delete(id);
+            return clearInterval(id);
+        },
+        clearAll:()=>{
+            for (var id of this.interval.active) {
+                this.clear(id);
+            }
+        }
+    }
     
     gen_qr = (text,size=250)=>{
         const qr_elem = document.createElement('div');
@@ -85,6 +103,13 @@ class Webslinger{
         if (typeof data === "string") {
             elem.insertAdjacentHTML('beforeend', data);
         } else { elem.appendChild(data); }
+    }
+
+    insertBefore(elem, data, context) {
+        if (typeof elem == "string") { elem = this.get(elem, context); }
+        if (elem) {
+            elem.insertAdjacentHTML('beforebegin', data);
+        }
     }
 
     destroy = (elem, context)=>{ 
@@ -171,13 +196,28 @@ class Webslinger{
     }
 
     invade (elem, content, context) {
+        // console.log(elem,content,context);
+        // console.log(typeof elem);
+        // debugger;
         let str;
         if (typeof elem === "string") { str = elem; elem = this.get(elem, context); }
         else { str = elem; }
+        console.log(elem, typeof elem, elem.length);
         if (elem) {
+            if (elem.length && elem.length > 0){
+                elem.forEach((el)=>{
+                    populate_elem(el, content);
+                })
+            } else {
+                populate_elem(elem, content);
+            }
+            
+        } else { console.log(`ELEMENT ${str} does not exist`); }
+
+        function populate_elem(elem,content){
             if (typeof content === "string") { elem.innerHTML = content; }
             else { elem.innerHTML = ''; elem.appendChild(content); }
-        } else { console.log(`ELEMENT ${str} does not exist`); }
+        }
     }
 
     prepend (elem, data, context=document) {
@@ -221,31 +261,38 @@ class Webslinger{
 
     
 
-    async_upload = async (option_field='data-option', clickHandler=null)=>{
+    async_upload = async (input_id='.async_file', single=true, callback=null)=>{
         return new Promise((resolve) => {
             let file = null;
             const async_forms = this.get('.async_form');
-            console.log(async_forms);
+            // console.log(async_forms);
             async_forms?.forEach((form)=>{
                 const submitHandler = (e) => {
-                    if (!file){
-                        e.preventDefault();
+                    // if (!file){
+                    //     e.preventDefault();
                         
-                        alert('Must upload file to proceed.')
-                        // form.removeEventListener('submit', submitHandler);
-                    }
+                    //     alert('Must upload file to proceed.')
+                    //     // form.removeEventListener('submit', submitHandler);
+                    // }
                   };
                   form.addEventListener('submit', submitHandler);
             });
 
-            const file_inputs = this.get('.async_file');
-            console.log('FILE INPUTS', file_inputs);
+            const file_inputs = this.get(input_id);
+            // console.log('FILE INPUTS', file_inputs, typeof file_inputs, input_id);
             file_inputs?.forEach((input)=>{
                 const changeHandler = ()=>{
                     const this_file = input.files[0];
                     file = this_file;
+                    
+                    if (single){
+                        input.removeEventListener('change', changeHandler);
+                    }
+
+                    if (callback){
+                        callback(this_file);
+                    }
                     resolve(this_file);
-                    input.removeEventListener('change', changeHandler);
                 }
                 input.addEventListener('change', changeHandler);
             })

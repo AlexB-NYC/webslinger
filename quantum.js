@@ -18,7 +18,8 @@ export class Quantum extends Ajax{
             png:'image/png',
             pdf:'application/pdf',
             jpeg: 'image/jpeg',
-            jpg: 'image/jpeg'
+            jpg: 'image/jpeg',
+            json: 'text/plain'
         }
     };
 
