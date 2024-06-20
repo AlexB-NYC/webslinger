@@ -7,11 +7,16 @@ import QrCreator from "../qr.js";
 import Cipher from './cipher.js';
 
 class Webslinger{    
-    constructor(session_token){
+    constructor(){
         this.template_dir = 'interface';
         this.dataman = new Dataman();
-        this.session_token = (session_token) ? session_token : this.dataman.token();
-        console.log('session_token', this.session_token);
+        // this.session_token = (session_token) ? session_token : this.dataman.token();
+        // console.log('session_token', this.session_token);
+        const session_check = sessionStorage.getItem('session_token');
+        this.session_token = session_check || this.dataman.token();
+
+        sessionStorage.setItem('session_token', this.session_token);
+
         this.ajax = new Ajax(this.session_token);
 
         this.pre_dialogHTML = `<div id="dialog_container"><div id="dialog_overlay" onclick="window.close_dialog();"></div><div id="dialog_content_container"><div id="dialog_exit" onclick="window.close_dialog();"></div><div id="dialog_content"></div></div></div>`;
@@ -149,6 +154,58 @@ class Webslinger{
         }
     }
 
+    //UNFINISHED FUNCTION FROM OLD MANGO FARM LIBRARIES. NEEDS DEBUGGING
+    alpha_sort = (elems_id, result_list_id, reverse=false, search_tag='data-sort', to_upper=true)=>{
+        const word_bank = [];
+        const elems = this.get(elems_id);
+        console.log(elems);
+        // debugger;
+        const elem_container = {}; 
+        if (!elems){
+          return false;
+        }
+  
+        var result_list = this.get(result_list_id);
+
+        if (!result_list){
+          return false;
+        }
+
+        if (elems.length){
+          elems.forEach((elem)=>{
+            let sort_word = (to_upper) ? elem.getAttribute(search_tag).toUpperCase() : elem.getAttribute(search_tag);
+            word_bank.push(sort_word);        
+            elem_container[sort_word] = elem;
+            
+            elem.parentNode.removeChild(elem);
+    
+          });  
+        }
+        const sorted_bank = [...alpha_sort(word_bank, reverse)];
+        console.log('SORT',{word_bank:word_bank,sorted:sorted_bank});
+        debugger;
+        for (let i=0; i<sorted_bank.length; i++){
+          result_list.appendChild(elem_container[word_bank[i]]);
+        } 
+
+        function alpha_sort(word_bank, reverse=false){   
+            if (reverse){
+                word_bank.sort(function(a, b){        
+                if(a < b) { return 1; }
+                if(a > b) { return -1; }
+                return 0;
+                });
+            } else {
+                word_bank.sort(function(a, b){        
+                if(a < b) { return -1; }
+                if(a > b) { return 1; }
+                return 0;
+                });
+            }
+            return word_bank;             
+          }
+    }
+
 
     openDialog = (content)=>{
         if (this.get('#dialog_content')) {
@@ -164,8 +221,6 @@ class Webslinger{
         this.destroy('#dialog_container');
     }
 
-    
-
     enable_dialog = (close_check)=>{
         return function(){
             if (close_check){
@@ -177,8 +232,6 @@ class Webslinger{
             }
         }.bind(this);
     }
-
-    
 
     get (string, context=document){
         let elems = [];
@@ -279,7 +332,7 @@ class Webslinger{
             });
 
             const file_inputs = this.get(input_id);
-            // console.log('FILE INPUTS', file_inputs, typeof file_inputs, input_id);
+            console.log('FILE INPUTS', file_inputs, typeof file_inputs, input_id, single);
             file_inputs?.forEach((input)=>{
                 const changeHandler = ()=>{
                     const this_file = input.files[0];
@@ -288,7 +341,7 @@ class Webslinger{
                     if (single){
                         input.removeEventListener('change', changeHandler);
                     }
-
+                    input.value = '';
                     if (callback){
                         callback(this_file);
                     }
