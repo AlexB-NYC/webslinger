@@ -255,7 +255,7 @@ class Webslinger{
         let str;
         if (typeof elem === "string") { str = elem; elem = this.get(elem, context); }
         else { str = elem; }
-        console.log(elem, typeof elem, elem.length);
+        // console.log(elem, typeof elem, elem.length);
         if (elem) {
             if (elem.length && elem.length > 0){
                 elem.forEach((el)=>{
