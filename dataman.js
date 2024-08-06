@@ -75,6 +75,13 @@ class Dataman {
         return Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);          
     }
 
+    obj_blob(obj) {
+      const jsonString = JSON.stringify(obj);
+      console.log(jsonString);
+      const blob = new Blob([jsonString], { type: 'application/json' }); 
+      return blob;
+  }
+
 }
 
 export default Dataman;
