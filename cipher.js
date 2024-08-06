@@ -142,6 +142,7 @@ class Cipher {
     const iv = this.base64ToArrayBuffer(this.blind_iv);
     const salt = this.base64ToArrayBuffer(this.blind_salt);
     const key = await this.deriveKey(keystring,salt);
+    console.log(ciphertext,keystring,iv,salt,key);
     return this.decrypt(ciphertext,key,iv);
   }
 
