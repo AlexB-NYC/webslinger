@@ -2,16 +2,14 @@ import Dataman from './dataman.js';
 import Ajax from './ajax.js';
 import {Template} from './template.js';
 import Quantum from './quantum.js';
-// import Slider from '../scroll.js';
-import QrCreator from "../qr.js";
 import Cipher from './cipher.js';
+import PINCODE from './pin.js';
 
 class Webslinger{    
     constructor(){
         this.template_dir = 'interface';
         this.dataman = new Dataman();
-        // this.session_token = (session_token) ? session_token : this.dataman.token();
-        // console.log('session_token', this.session_token);
+
         const session_check = sessionStorage.getItem('session_token');
         this.session_token = session_check || this.dataman.token();
 
@@ -25,10 +23,11 @@ class Webslinger{
         this.template_cache = {};
 
         this.quantum = new Quantum(this.session_token);
-        // this.slider = new Slider();
 
         this.cipher = new Cipher();
         
+        this.pin = new PINCODE();
+
         this.qr = QrCreator;
 
         window.addEventListener("dragover", function (e) {
