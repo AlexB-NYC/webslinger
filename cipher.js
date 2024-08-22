@@ -1,4 +1,3 @@
-// ES6 Module Refactor of IIFE
 
 let self;
 
@@ -7,6 +6,7 @@ class Cipher {
     this.blind_salt = "6Hz344tz7MHsCJ7uajdiJQ==";
     this.blind_iv = "/ZHFzyvlrcHbl9xnk06LWA==";
   }
+  
 
   getEntropy(callback) {
       const crypto = window.crypto || window.mscrypto;

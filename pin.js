@@ -13,23 +13,20 @@ class PINCODE {
 
       this.mask = true;
     
-      this.html = `<div class="pin_entry_message">Enter pin:</div><div class="pin_row"><div class="${this.pin_class} active_pin"></div><div class="${this.pin_class}"></div><div class="${this.pin_class}"></div><div class="${this.pin_class}"></div><div class="${this.pin_class}"></div><div class="${this.pin_class}"></div><input type="number" pattern="\\d\\*" id="mobile_${this.pin_class}"></div>`;
-      this.new = `<div class="pin_block"><div class="pin_entry_message">Create pin:</div><div class="pin_row"><div class="${this.pin_class} active_pin"></div><div class="${this.pin_class}"></div><div class="${this.pin_class}"></div><div class="${this.pin_class}"></div><div class="${this.pin_class}"></div><div class="${this.pin_class}"></div></div><div class="pin_block"><div class="pin_entry_message" style="margin-top:15px;">Confirm pin:</div><div class="pin_row"><div class="${this.pin_class}"></div><div class="${this.pin_class}"></div><div class="${this.pin_class}"></div><div class="${this.pin_class}"></div><div class="${this.pin_class}"></div><div class="${this.pin_class}"></div><input type="number" pattern="\\d\\*" id="mobile_${this.pin_class}"></div><input type="number" pattern="\\d\\*" id="mobile_${this.pin_class}"></div></div>`;
-      this.redeem = `<div class="pin_entry_message">Enter Redemption Code to Claim NFT:</div><div class="pin_row"><div class="${this.pin_class} active_pin"></div><div class="${this.pin_class}"></div><div class="${this.pin_class}"></div><div class="${this.pin_class}"></div><div class="${this.pin_class}"></div><div class="${this.pin_class}"></div><input type="text" id="mobile_${this.pin_class}"></div>`;
-      this.verify = `<div class="pin_entry_message">Confirm pin:</div><div class="pin_row"><div class="${this.pin_class} active_pin"></div><div class="${this.pin_class}"></div><div class="${this.pin_class}"></div><div class="${this.pin_class}"></div><div class="${this.pin_class}"></div><div class="${this.pin_class}"></div><input type="number" pattern="\\d\\*" id="mobile_${this.pin_class}"></div>`;
-      this.confirm = `<div class="pin_entry_message">Enter Confirmation Code:</div><div class="pin_row"><div class="${this.pin_class} active_pin"></div><div class="${this.pin_class}"></div><div class="${this.pin_class}"></div><div class="${this.pin_class}"></div><div class="${this.pin_class}"></div><div class="${this.pin_class}"></div><input type="number" pattern="\\d\\*" id="mobile_${this.pin_class}"></div>`;
-      this.g2fa = `<div class="pin_entry_message">Enter authentication code:</div><div class="pin_row"><div class="pin active_pin"></div><div class="pin"></div><div class="pin"></div><div class="pin"></div><div class="pin"></div><div class="pin"></div><input type="number" pattern="\\d\\*" id="mobile_pin_input"></div>`;
+      this.html = `<div class="pin_entry_message">Enter pin:</div><div class="pin_row"><div class="${this.pin_class} active_pin"></div><div class="${this.pin_class}"></div><div class="${this.pin_class}"></div><div class="${this.pin_class}"></div><div class="${this.pin_class}"></div><div class="${this.pin_class}"></div><input type="number" pattern="\\d\\*" class="mobile_${this.pin_class}" id="mobile_${this.pin_class}"></div>`;
+      this.new = `<div class="pin_block"><div class="pin_entry_message">Create pin:</div><div class="pin_row"><div class="${this.pin_class} active_pin"></div><div class="${this.pin_class}"></div><div class="${this.pin_class}"></div><div class="${this.pin_class}"></div><div class="${this.pin_class}"></div><div class="${this.pin_class}"></div></div><div class="pin_block"><div class="pin_entry_message" style="margin-top:15px;">Confirm pin:</div><div class="pin_row"><div class="${this.pin_class}"></div><div class="${this.pin_class}"></div><div class="${this.pin_class}"></div><div class="${this.pin_class}"></div><div class="${this.pin_class}"></div><div class="${this.pin_class}"></div><input type="number" pattern="\\d\\*" class="mobile_${this.pin_class}"></div><input type="number" pattern="\\d\\*" class="mobile_${this.pin_class}"></div></div>`;
     }
 
   
-    init(callback = null) {
+    init(create=false,callback = null) {
         return new Promise((resolve, reject) => {
             this.init_resolve = resolve;
             this.active = 0;
             this.callback = callback;
+            this.create = create;
 
             if (true) {  
-                const pin_input = document.getElementById(this.mobile_pin_id); 
+                const pin_input = document.getElementsByClassName(`mobile_${this.pin_class}`)[0]; 
                 const pins = [...document.getElementsByClassName(this.pin_class)];
                 this.pinClickHandler = (pin_box) => {
                     return () => {
@@ -99,7 +96,7 @@ class PINCODE {
             document.removeEventListener('keydown', this.keydownHandler);
         }
 
-        const pin_input = document.getElementById(this.mobile_pin_id);
+        const pin_input = document.getElementsByClassName(`mobile_${this.pin_class}`)[0];
         if (this.inputHandler) {
             pin_input.removeEventListener('input', this.inputHandler);
         }
@@ -189,28 +186,23 @@ class PINCODE {
             for (let i = 0; i < 6; i++) {
                 PINCODE.push(pins[i]);
             }
-
+    
             const pin_string = PINCODE.join('');
-            document.removeEventListener('keydown', this.input.bind(this));
-            this.disable_inputs(false);
-            return pin_string;
             
-            const CONFIRM_PIN = [];
-            if (this.create){
-                for (let i=6; i<12; i++){
+            // Check if we're in create mode to handle the confirmation PIN
+            if (this.create) {
+                const CONFIRM_PIN = [];
+                for (let i = 6; i < 12; i++) {
                     CONFIRM_PIN.push(pins[i]);
                 }
                 const confirm_string = CONFIRM_PIN.join('');
-                return {pin_string, confirm_string};
+                return { pin_code: pin_string, confirm_code: confirm_string };
             } else {
-                const pin_string = PINCODE.join('');
-                document.removeEventListener('keydown', this.input.bind(this));
                 return pin_string;
             }
-    
-            
         }).bind(this);
     }
+    
     
   }
   

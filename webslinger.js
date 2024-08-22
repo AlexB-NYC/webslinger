@@ -4,6 +4,7 @@ import {Template} from './template.js';
 import Quantum from './quantum.js';
 import Cipher from './cipher.js';
 import PINCODE from './pin.js';
+import Autocomplete from './autocomplete.js';
 
 class Webslinger{    
     constructor(){
@@ -28,7 +29,6 @@ class Webslinger{
         
         this.pin = new PINCODE();
 
-        this.qr = QrCreator;
 
         window.addEventListener("dragover", function (e) {
             e = e || event;
@@ -59,12 +59,28 @@ class Webslinger{
             }
         }
     }
+ 
+    load_external= async (script_list)=>{
+        const scripts = Array.isArray(script_list) ? script_list : [script_list];
     
-    gen_qr = (text,size=250)=>{
-        const qr_elem = document.createElement('div');
-        this.qr.render({text, size},qr_elem);
-        return qr_elem;
-    }
+        for (let src of scripts) {
+            await new Promise((resolve, reject) => {
+                const script = document.createElement('script');
+                script.onload = () => {
+                    console.log('script loaded - ', src);
+                    resolve();
+                };
+                script.onerror = (error) => {
+                    console.error('script load error - ', src);
+                    reject(error);
+                };
+                script.src = `${src}?`;
+                document.head.appendChild(script);
+            });
+        }
+        console.log('DONE WITH LOOP');
+        return true;
+    }   
 
     initialized = ()=>{
         return true;
@@ -78,28 +94,9 @@ class Webslinger{
         }
     }
 
-    nav_link = (element)=>{
-        //THIS MUST BE ABSTRACTED OUT OF THIS LIBRARY!!!
-        const pages = {
-            'login':'access/login',
-            'signup':'access/signup'
-        }
-        
-        element.addEventListener("click", async function(event) {
-            event.preventDefault();
-            const page = this.getAttribute('data-link');
-            console.log(page)
-            const template = pages[page];
-            history.pushState({page}, '', page);
-            console.log('NAVIGATION', page);
-                
-            //PAGE 1
-    
-            ri.insert(template,'#circle_container');
-    
-            //PAGE 2
-    
-        });
+    autocomplete = (haystack, needle, internal, threshold)=>{
+        const this_auto = new Autocomplete(haystack, needle, internal, threshold);
+        return this_auto;
     }
 
     append (elem, data, context) {
@@ -385,7 +382,28 @@ class Webslinger{
 
         });
     }
-
+    
+    load_script= async (script_list)=>{
+        const scripts = Array.isArray(script_list) ? script_list : [script_list];
+    
+        for (let src of scripts) {
+            await new Promise((resolve, reject) => {
+                const script = document.createElement('script');
+                script.onload = () => {
+                    console.log('script loaded - ', src);
+                    resolve();
+                };
+                script.onerror = (error) => {
+                    console.error('script load error - ', src);
+                    reject(error);
+                };
+                script.src = `${src}?`;
+                document.head.appendChild(script);
+            });
+        }
+        console.log('DONE WITH LOOP');
+        return true;
+    }    
     // getJSON = async(url) => {
     //     try{
     //         const response = await fetch(url);
