@@ -5,6 +5,7 @@ import Quantum from './quantum.js';
 import Cipher from './cipher.js';
 import PINCODE from './pin.js';
 import Autocomplete from './autocomplete.js';
+import QRCode from './qr.js';
 
 class Webslinger{    
     constructor(){
@@ -99,6 +100,11 @@ class Webslinger{
         return this_auto;
     }
 
+    qr = (qr_string, qr_size)=>{
+        const qr = new QRCode(qr_string, qr_size);
+        return qr;
+    }
+        
     append (elem, data, context) {
         if (typeof elem == "string") { elem = this.get(elem, context); }
         if (typeof data === "string") {
