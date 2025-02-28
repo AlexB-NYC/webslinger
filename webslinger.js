@@ -6,6 +6,8 @@ import Cipher from './cipher.js';
 import PINCODE from './pin.js';
 import Autocomplete from './autocomplete.js';
 import QRCode from './qr.js';
+import QrCreator from "../qr.js";
+
 
 class Webslinger{    
     constructor(){
@@ -29,7 +31,7 @@ class Webslinger{
         this.cipher = new Cipher();
         
         this.pin = new PINCODE();
-
+        this.qr = QrCreator;
 
         window.addEventListener("dragover", function (e) {
             e = e || event;
@@ -98,6 +100,12 @@ class Webslinger{
     autocomplete = (haystack, needle, internal, threshold)=>{
         const this_auto = new Autocomplete(haystack, needle, internal, threshold);
         return this_auto;
+    }
+
+    gen_qr = (text,size=250)=>{
+        const qr_elem = document.createElement('div');
+        this.qr.render({text, size},qr_elem);
+        return qr_elem;
     }
 
     qr = (qr_string, qr_size)=>{
