@@ -10,6 +10,7 @@ class Autocomplete {
     }
 
     init = () => {
+        console.log(this);
         this.needle.addEventListener('input', this.check);
         this.needle.addEventListener('keydown', this.navigate);  // Add keydown event listener
     }
@@ -27,14 +28,20 @@ class Autocomplete {
     check = (e) => {
         const value = e.target.value;
         if (value.length >= this.threshold) {
+
+        console.log({value});
+
             if (this.displayed) {
                 this.container.innerHTML = '';
             } else {
                 this.create();
             }
-            const regex = new RegExp('^' + value, 'i'); // Match from the beginning of the string
-
-            const filtered_haystack = this.haystack.filter(item => regex.test(item));
+            // const regex = new RegExp('^' + value, 'i'); // Match from the beginning of the string
+            // const regex = new RegExp(value, 'i'); // Match from the beginning of the string
+            // const filtered_haystack = this.haystack.filter(item => regex.test(item));
+            const filtered_haystack = this.haystack.filter(item =>
+                item.toLowerCase().includes(value.toLowerCase())
+            );
             this.disp(filtered_haystack);
 
             if (filtered_haystack.length === 1) {
@@ -79,6 +86,7 @@ class Autocomplete {
             current_haystack.forEach((text, index) => {
                 const button = document.createElement('button');
                 button.textContent = text;
+                button.classList = 'autocomplete-item';
                 button.addEventListener('click', this.select);
                 this.container.appendChild(button);
             });
@@ -123,6 +131,10 @@ class Autocomplete {
             this.container.remove();
             this.container = null;
             this.displayed = false;
+        }
+
+        if (this.callback){
+            this.callback(this.needle.value);
         }
     }
 
