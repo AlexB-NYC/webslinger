@@ -95,6 +95,12 @@ class Webslinger{
         }
     }
 
+    clipboard =  (str)=>{
+        return async (e)=>{
+            return navigator.clipboard.writeText(str).then(() => console.log("Copied!", str));
+        }
+    }
+
     autocomplete = (haystack, needle, internal, threshold)=>{
         const this_auto = new Autocomplete(haystack, needle, internal, threshold);
         return this_auto;
@@ -374,7 +380,7 @@ class Webslinger{
                   form.addEventListener('submit', submitHandler);
             });
 
-            const options = this.get('.option_btn');
+            const options = this.get('.async_option');
             console.log(options);
             
             options?.forEach((option)=>{

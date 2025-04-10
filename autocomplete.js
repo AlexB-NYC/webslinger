@@ -1,5 +1,5 @@
 class Autocomplete {
-    constructor(haystack, needle, internal = true, threshold = 0) {
+    constructor(haystack, needle, internal = true, threshold = 0,filter=true) {
         this.haystack = haystack;
         this.needle = needle;
         this.internal = internal;
@@ -26,13 +26,14 @@ class Autocomplete {
 
     check = (e) => {
         const value = e.target.value;
-        if (value.length > this.threshold) {
+        if (value.length >= this.threshold) {
             if (this.displayed) {
                 this.container.innerHTML = '';
             } else {
                 this.create();
             }
             const regex = new RegExp('^' + value, 'i'); // Match from the beginning of the string
+
             const filtered_haystack = this.haystack.filter(item => regex.test(item));
             this.disp(filtered_haystack);
 
