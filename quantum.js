@@ -171,6 +171,9 @@ export class Quantum extends Ajax{
 
     async send_file(file_token){
         const file = this.active_uploads[file_token];        
+        console.log(file);
+        // debugger;
+
         const total_chunks = Math.ceil(file.size / this.chunk_size);
         let current_chunk = 0;
         console.log(file_token, file, total_chunks, current_chunk);
@@ -185,12 +188,13 @@ export class Quantum extends Ajax{
             this.progress_hook(this.active_uploads);
         }
         const filename = `${file.name}`;
+        const directory = file.directory ?? '';
         // const filename = `${file.name}?type="${file.type}"`;
         console.log('FINAL FILENAME....', filename);
         const path = this.path;
         console.log('PATH', path);
         const finalize_url = `${this.upload_path}?action=finish&file_token=${file_token}&session_token=${this.session_token}`;
-        const result = await this.json(finalize_url, {filename, path});
+        const result = await this.json(finalize_url, {filename, directory, path});
         console.log('finalize', result);
         this.active_uploads[file_token].status = 'finished';
         this.progress_hook(this.active_uploads);

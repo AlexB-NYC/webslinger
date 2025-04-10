@@ -1,5 +1,5 @@
 class Autocomplete {
-    constructor(haystack, needle, internal = true, threshold = 0) {
+    constructor(haystack, needle, internal = true, threshold = 0,filter=true) {
         this.haystack = haystack;
         this.needle = needle;
         this.internal = internal;
@@ -27,8 +27,10 @@ class Autocomplete {
 
     check = (e) => {
         const value = e.target.value;
+        if (value.length >= this.threshold) {
+
         console.log({value});
-        if (value.length > this.threshold) {
+
             if (this.displayed) {
                 this.container.innerHTML = '';
             } else {

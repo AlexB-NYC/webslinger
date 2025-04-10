@@ -18,6 +18,16 @@ class Dataman {
         }
     }
 
+    b64_decode = (str)=>{
+      console.log(str);
+      return new TextDecoder().decode(Uint8Array.from(atob(str), c => c.charCodeAt(0)));
+    }
+    
+    b64_encode = (str)=>{
+      return btoa(new TextDecoder('utf-8').decode(new TextEncoder().encode(str)));
+    }
+
+
     crc32(r){
         for(var a,o=[],c=0;c<256;c++){a=c;for(var f=0;f<8;f++)a=1&a?3988292384^a>>>1:a>>>1;o[c]=a}for(var n=-1,t=0;t<r.length;t++)n=n>>>8^o[255&(n^r.charCodeAt(t))];return((-1^n)>>>0).toString(16)
     }
