@@ -25,7 +25,8 @@ class Ajax{
         const response = await fetch(url, options);
         
         if (!response.ok) {
-            throw new Error(`HTTP error! status: ${response.status}`);
+            const error_text = await response.text();
+            throw new Error(`HTTP error! status: ${response.status} | response: ${error_text}`);
         }
     
         return await response.text();

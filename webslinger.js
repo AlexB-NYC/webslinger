@@ -303,7 +303,7 @@ class Webslinger{
         // console.log()
         const exists = (this.template_cache[template] !== undefined);
         // console.log(exists, this.template_cache);        
-        const result = (!exists) ? await this.ajax.go(`/${this.template_dir}/${template}.html?${this.session_token}`) : this.template_cache[template];
+        const result = (!exists) ? await this.ajax.go(`/${this.template_dir}/${template}.html?${this.session_token}`, {}, 'GET') : this.template_cache[template];
         // console.log(result);
         this.template_cache[template] = result;
         const thisTemplate = Template(result);
