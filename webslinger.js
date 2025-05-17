@@ -110,6 +110,7 @@ class Webslinger{
 
     gen_qr = (text,size=250)=>{
         const qr_elem = document.createElement('div');
+        qr_elem.className = 'qr_div';
         this.qr.render({text, size},qr_elem);
         return qr_elem;
     }
@@ -118,9 +119,57 @@ class Webslinger{
         const qr = new QRCode(qr_string, qr_size);
         return qr;
     }
+
+    copy_init = (copy_elem,str)=>{
+        if (typeof copy_elem === 'string'){copy_elem = this.get(copy_elem)}
+        console.log({copy_elem, str});
+        copy_elem.addEventListener('click', ()=>{
+                    
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+                // Modern API
+                console.log('copy', str)
+                this.clipboard(str)();
+                } else {
+                // Fallback for Safari/iOS and older browsers
+                    const text_area = document.createElement('textarea');
+                    text_area.value = str;
+                    // Prevent scrolling to bottom
+                    text_area.style.position = 'fixed';
+                    text_area.style.top = 0;
+                    text_area.style.left = 0;
+                    text_area.style.width = '1px';
+                    text_area.style.height = '1px';
+                    text_area.style.padding = 0;
+                    text_area.style.border = 'none';
+                    text_area.style.outline = 'none';
+                    text_area.style.boxShadow = 'none';
+                    text_area.style.background = 'transparent';
+                    document.body.appendChild(text_area);
+                    text_area.focus();
+                    text_area.select();
+                
+                    let success = false;
+                    try {
+                        success = document.execCommand('copy');
+                        console.log('Fallback: Copying text command was', success ? 'successful' : 'unsuccessful');
+                    } catch (err) {
+                        console.error('Fallback: Oops, unable to copy', err);
+                    }
+                }
+                const copy_msg = document.createElement('div');
+                copy_msg.innerHTML = 'Copied!';
+                copy_msg.className = 'copy_msg';
+                copy_elem.appendChild(copy_msg)
+                setTimeout(()=>{
+                    this.app.destroy(copy_msg);
+                },1500)
+        });
+                
+    }
         
     append (elem, data, context) {
         if (typeof elem == "string") { elem = this.get(elem, context); }
+        console.log(elem);
         if (typeof data === "string") {
             elem.insertAdjacentHTML('beforeend', data);
         } else { elem.appendChild(data); }
@@ -139,7 +188,9 @@ class Webslinger{
         if (elem && elem.parentNode && elem.parentNode.classList.contains('elem_container')){        
           this.destroy(elem.parentNode);
         } else if (elem){ 
-          if (elem.length){
+            console.log(elem, elem.length, elem.tagName);
+          if (elem.length && elem.tagName !== 'FORM'){
+            
             elem.forEach((thisElem)=>{
               thisElem.parentNode.removeChild(thisElem);
             });

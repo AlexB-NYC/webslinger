@@ -9,10 +9,14 @@ class Autocomplete {
         this.currentIndex = -1;  // Tracks the current active item
     }
 
-    init = () => {
+    init = (callback=null) => {
         console.log(this);
+        this.callback = callback;
         this.needle.addEventListener('input', this.check);
-        this.needle.addEventListener('keydown', this.navigate);  // Add keydown event listener
+        this.needle.addEventListener('keydown', this.navigate);
+        if (this.threshold === 0){
+            this.first_check();
+        }
     }
 
     create = () => {
@@ -22,6 +26,38 @@ class Autocomplete {
             this.container = container;
             this.needle.insertAdjacentElement('afterend', this.container);
             this.displayed = true;
+        }
+    }
+
+    first_check = ()=>{
+        const value = this.needle.value;
+        if (value.length >= this.threshold) {
+
+        console.log({value});
+
+            if (this.displayed) {
+                this.container.innerHTML = '';
+            } else {
+                this.create();
+            }
+            // const regex = new RegExp('^' + value, 'i'); // Match from the beginning of the string
+            // const regex = new RegExp(value, 'i'); // Match from the beginning of the string
+            // const filtered_haystack = this.haystack.filter(item => regex.test(item));
+            const filtered_haystack = this.haystack.filter(item =>
+                item.toLowerCase().includes(value.toLowerCase())
+            );
+            this.disp(filtered_haystack);
+
+            if (filtered_haystack.length === 1) {
+                const suggestion = filtered_haystack[0];
+                this.prefill(suggestion, value);
+            }
+        } else {
+            if (this.container) {
+                this.container.remove();
+                this.container = null;
+                this.displayed = false;
+            }
         }
     }
 
