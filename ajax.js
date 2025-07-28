@@ -22,7 +22,7 @@ class Ajax{
         if (method !== 'GET') {
             options.body = data;
         }
-    
+        console.log({url,options});
         const response = await fetch(url, options);
         
         if (!response.ok) {
@@ -66,7 +66,7 @@ class Ajax{
 
 
     async json(url,data={}){
-        data.session_token = this.session_token;
+        data.session_token = this.session_token;        
         var query = [];
         for (var key in data) {
             query.push(encodeURIComponent(key) + '=' + encodeURIComponent(data[key]));

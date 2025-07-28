@@ -5,9 +5,9 @@ import Quantum from './quantum.js';
 import Cipher from './cipher.js';
 import PINCODE from './pin.js';
 import Autocomplete from './autocomplete.js';
-import QRCode from './qr.js';
+// import QRCode from './qr.js';
 import QrCreator from "../qr.js";
-
+import { EventEmitter } from './events.js';
 
 class Webslinger{    
     constructor(){
@@ -32,6 +32,8 @@ class Webslinger{
         
         this.pin = new PINCODE();
         this.qr = QrCreator;
+
+        this.events = new EventEmitter();
 
         window.addEventListener("dragover", function (e) {
             e = e || event;
@@ -115,10 +117,10 @@ class Webslinger{
         return qr_elem;
     }
 
-    qr = (qr_string, qr_size)=>{
-        const qr = new QRCode(qr_string, qr_size);
-        return qr;
-    }
+    // qr = (qr_string, qr_size)=>{
+    //     const qr = new QRCode(qr_string, qr_size);
+    //     return qr;
+    // }
 
     copy_init = (copy_elem,str)=>{
         if (typeof copy_elem === 'string'){copy_elem = this.get(copy_elem)}
