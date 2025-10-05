@@ -5,14 +5,8 @@ import Quantum from './quantum.js';
 import Cipher from './cipher.js';
 import PINCODE from './pin.js';
 import Autocomplete from './autocomplete.js';
-<<<<<<< HEAD
 import QRCode from './qr.js';
 import Events from './events.js';
-=======
-// import QRCode from './qr.js';
-import QrCreator from "../qr.js";
-import { EventEmitter } from './events.js';
->>>>>>> 99d3b4b953ed168257d24aff469ed04025406bf8
 
 class Webslinger{    
     constructor(namespace="webslinger"){
