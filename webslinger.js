@@ -6,12 +6,13 @@ import Cipher from './cipher.js';
 import PINCODE from './pin.js';
 import Autocomplete from './autocomplete.js';
 import QRCode from './qr.js';
+import Events from './events.js';
 
 class Webslinger{    
-    constructor(){
+    constructor(namespace="webslinger"){
         this.template_dir = 'interface';
+        this.evt = new Events(namespace);
         this.dataman = new Dataman();
-
         const session_check = sessionStorage.getItem('session_token');
         this.session_token = session_check || this.dataman.token();
 
@@ -40,7 +41,9 @@ class Webslinger{
             e = e || event;
             e.preventDefault();
         }, false);
-       
+
+        //JAVASCRIPT IS WEIRD
+       queueMicrotask(() => this.evt.emit("ready", { instance: this }));
     };
 
     interval = {
@@ -58,6 +61,7 @@ class Webslinger{
             for (var id of this.interval.active) {
                 this.clear(id);
             }
+            this.emit("intervals:cleared");
         }
     }
  
@@ -69,10 +73,12 @@ class Webslinger{
                 const script = document.createElement('script');
                 script.onload = () => {
                     console.log('script loaded - ', src);
+                    this.emit("script:loaded", src);
                     resolve();
                 };
                 script.onerror = (error) => {
                     console.error('script load error - ', src);
+                    this.emit("script:error", src, error);
                     reject(error);
                 };
                 script.src = `${src}?`;
@@ -80,6 +86,7 @@ class Webslinger{
             });
         }
         console.log('DONE WITH LOOP');
+        this.emit("scripts:done", scripts);
         return true;
     }   
 
