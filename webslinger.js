@@ -5,8 +5,14 @@ import Quantum from './quantum.js';
 import Cipher from './cipher.js';
 import PINCODE from './pin.js';
 import Autocomplete from './autocomplete.js';
+<<<<<<< HEAD
 import QRCode from './qr.js';
 import Events from './events.js';
+=======
+// import QRCode from './qr.js';
+import QrCreator from "../qr.js";
+import { EventEmitter } from './events.js';
+>>>>>>> 99d3b4b953ed168257d24aff469ed04025406bf8
 
 class Webslinger{    
     constructor(namespace="webslinger"){
@@ -30,7 +36,9 @@ class Webslinger{
         this.cipher = new Cipher();
         
         this.pin = new PINCODE();
+        this.qr = QrCreator;
 
+        this.events = new EventEmitter();
 
         window.addEventListener("dragover", function (e) {
             e = e || event;
@@ -102,18 +110,79 @@ class Webslinger{
         }
     }
 
+    clipboard =  (str)=>{
+        return async (e)=>{
+            return navigator.clipboard.writeText(str).then(() => console.log("Copied!", str));
+        }
+    }
+
     autocomplete = (haystack, needle, internal, threshold)=>{
         const this_auto = new Autocomplete(haystack, needle, internal, threshold);
         return this_auto;
     }
 
-    qr = (qr_string, qr_size)=>{
-        const qr = new QRCode(qr_string, qr_size);
-        return qr;
+    gen_qr = (text,size=250)=>{
+        const qr_elem = document.createElement('div');
+        qr_elem.className = 'qr_div';
+        this.qr.render({text, size},qr_elem);
+        return qr_elem;
+    }
+
+    // qr = (qr_string, qr_size)=>{
+    //     const qr = new QRCode(qr_string, qr_size);
+    //     return qr;
+    // }
+
+    copy_init = (copy_elem,str)=>{
+        if (typeof copy_elem === 'string'){copy_elem = this.get(copy_elem)}
+        console.log({copy_elem, str});
+        copy_elem.addEventListener('click', ()=>{
+                    
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+                // Modern API
+                console.log('copy', str)
+                this.clipboard(str)();
+                } else {
+                // Fallback for Safari/iOS and older browsers
+                    const text_area = document.createElement('textarea');
+                    text_area.value = str;
+                    // Prevent scrolling to bottom
+                    text_area.style.position = 'fixed';
+                    text_area.style.top = 0;
+                    text_area.style.left = 0;
+                    text_area.style.width = '1px';
+                    text_area.style.height = '1px';
+                    text_area.style.padding = 0;
+                    text_area.style.border = 'none';
+                    text_area.style.outline = 'none';
+                    text_area.style.boxShadow = 'none';
+                    text_area.style.background = 'transparent';
+                    document.body.appendChild(text_area);
+                    text_area.focus();
+                    text_area.select();
+                
+                    let success = false;
+                    try {
+                        success = document.execCommand('copy');
+                        console.log('Fallback: Copying text command was', success ? 'successful' : 'unsuccessful');
+                    } catch (err) {
+                        console.error('Fallback: Oops, unable to copy', err);
+                    }
+                }
+                const copy_msg = document.createElement('div');
+                copy_msg.innerHTML = 'Copied!';
+                copy_msg.className = 'copy_msg';
+                copy_elem.appendChild(copy_msg)
+                setTimeout(()=>{
+                    this.app.destroy(copy_msg);
+                },1500)
+        });
+                
     }
         
     append (elem, data, context) {
         if (typeof elem == "string") { elem = this.get(elem, context); }
+        console.log(elem);
         if (typeof data === "string") {
             elem.insertAdjacentHTML('beforeend', data);
         } else { elem.appendChild(data); }
@@ -132,7 +201,9 @@ class Webslinger{
         if (elem && elem.parentNode && elem.parentNode.classList.contains('elem_container')){        
           this.destroy(elem.parentNode);
         } else if (elem){ 
-          if (elem.length){
+            console.log(elem, elem.length, elem.tagName);
+          if (elem.length && elem.tagName !== 'FORM'){
+            
             elem.forEach((thisElem)=>{
               thisElem.parentNode.removeChild(thisElem);
             });
@@ -296,7 +367,7 @@ class Webslinger{
         // console.log()
         const exists = (this.template_cache[template] !== undefined);
         // console.log(exists, this.template_cache);        
-        const result = (!exists) ? await this.ajax.go(`/${this.template_dir}/${template}.html?${this.session_token}`) : this.template_cache[template];
+        const result = (!exists) ? await this.ajax.go(`/${this.template_dir}/${template}.html?${this.session_token}`, {}, 'GET') : this.template_cache[template];
         // console.log(result);
         this.template_cache[template] = result;
         const thisTemplate = Template(result);
@@ -381,7 +452,7 @@ class Webslinger{
                   form.addEventListener('submit', submitHandler);
             });
 
-            const options = this.get('.option_btn');
+            const options = this.get('.async_option');
             console.log(options);
             
             options?.forEach((option)=>{

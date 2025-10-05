@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 // /lib/js/events.js
 export default class Events {
   constructor(namespace = "") {
@@ -121,4 +122,26 @@ export default class Events {
 
   // create a namespaced child emitter that prefixes events
   child(ns) { return new Events(this._key(ns)); }
+=======
+// lib/event-emitter.js
+export class EventEmitter {
+  constructor() {
+    this.events = {};
+  }
+
+  on(event, listener) {
+    if (!this.events[event]) this.events[event] = [];
+    this.events[event].push(listener);
+  }
+
+  off(event, listener) {
+    if (!this.events[event]) return;
+    this.events[event] = this.events[event].filter(l => l !== listener);
+  }
+
+  emit(event, ...args) {
+    if (!this.events[event]) return;
+    this.events[event].forEach(listener => listener(...args));
+  }
+>>>>>>> 99d3b4b953ed168257d24aff469ed04025406bf8
 }

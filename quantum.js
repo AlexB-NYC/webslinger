@@ -10,7 +10,7 @@ export class Quantum extends Ajax{
         this.progress_hook = null;
         this.encryption_data = encryption_data;
         this.chunk_size = 1000000;
-        this.upload_path = '/quantum/upload.php'; 
+        this.upload_path = '/api/quantum/upload'; 
 
         this.cipher = new Cipher();
 
@@ -160,7 +160,7 @@ export class Quantum extends Ajax{
             this.active_uploads[file_token].total = 0;
             files[file_token].status = 'queued';
             
-            this.progress_data = await this.progress_hook(this.active_uploads); //GET RID OF AWAIT?????
+            this.progress_data = this.progress_hook(this.active_uploads); //GET RID OF AWAIT?????
 
             const upload_result = await this.send_file(file_token);
             upload_results[file_token] = upload_result;            
@@ -171,6 +171,9 @@ export class Quantum extends Ajax{
 
     async send_file(file_token){
         const file = this.active_uploads[file_token];        
+        console.log(file);
+        // debugger;
+
         const total_chunks = Math.ceil(file.size / this.chunk_size);
         let current_chunk = 0;
         console.log(file_token, file, total_chunks, current_chunk);
@@ -184,13 +187,14 @@ export class Quantum extends Ajax{
             this.active_uploads[file_token].current = current_chunk;        
             this.progress_hook(this.active_uploads);
         }
-        const filename = `${file.name}`;
+        const filename = (this.encryption_data) ? `${file.name}.encrypted` : file.name;
+        const directory = file.directory ?? '';
         // const filename = `${file.name}?type="${file.type}"`;
         console.log('FINAL FILENAME....', filename);
         const path = this.path;
         console.log('PATH', path);
         const finalize_url = `${this.upload_path}?action=finish&file_token=${file_token}&session_token=${this.session_token}`;
-        const result = await this.json(finalize_url, {filename, path});
+        const result = await this.json(finalize_url, {filename, directory, path});
         console.log('finalize', result);
         this.active_uploads[file_token].status = 'finished';
         this.progress_hook(this.active_uploads);
@@ -202,11 +206,14 @@ export class Quantum extends Ajax{
         const start = current_chunk * this.chunk_size;
         const stop = start + this.chunk_size;
         
-        const upload_url = `${this.upload_path}?action=chunk&file_token=${file_token}&session_token=${this.session_token}&path=${this.path}`;   
-        
+        const upload_url = `${this.upload_path}?action=chunk&index=${current_chunk}&file_token=${file_token}&session_token=${this.session_token}&path=${this.path}`;   
+        console.log(upload_url);
+        // debugger;
+
         
         const blob = file.slice(start, stop);
-        
+        console.log("[Quantum.send_chunk] file_token:", file_token, "chunk:", current_chunk, "chunk size:", blob.size);
+
         console.log(this.encryption_data);
         if (this.encryption_data){
             const encrypted_blob = await this.encrypt_chunk(blob, this.active_uploads[file_token].type);
@@ -221,7 +228,9 @@ export class Quantum extends Ajax{
             }     
         } else {
             try {
-                const result = await this.blob(upload_url, blob);            
+                const result = await this.blob(upload_url, blob);    
+                console.log("[Quantum.send_chunk] Server response:", result);
+        
                 return result;
             } catch(error){
                 throw error;
@@ -230,30 +239,69 @@ export class Quantum extends Ajax{
            
     }
 
-    async encrypt_chunk(blob, mimetype){
-        console.log(blob, mimetype);
-        const b64_blob = await this.blobToBase64(blob);
-        console.log(b64_blob);
-        // const pinSaltBuffer = window.crypto.getRandomValues(new Uint8Array(16));
-        const fileSaltBuffer = await this.cipher.stringToArrayBuffer(this.encryption_data.fileSalt);
-        console.log(this.encryption_data.fileSalt,fileSaltBuffer);
-        const fileKeyBuffer = await this.cipher.deriveKey(this.encryption_data.priv_key, fileSaltBuffer);
+    // async encrypt_key(){
+    //     // const pinSaltBuffer = window.crypto.getRandomValues(new Uint8Array(16));
+    //     const fileSaltBuffer = await this.cipher.stringToArrayBuffer(this.encryption_data.fileSalt);
+    //     console.log(this.encryption_data.fileSalt,fileSaltBuffer);
+    //     const fileKeyBuffer = await this.cipher.deriveKey(this.encryption_data.priv_key, fileSaltBuffer);
         
-        // const pinIvBuffer = window.crypto.getRandomValues(new Uint8Array(16));
-        const fileIVBuffer = await this.cipher.stringToArrayBuffer(this.encryption_data.fileIV);
-        console.log(this.encryption_data.fileIV,fileIVBuffer);
+    //     // const pinIvBuffer = window.crypto.getRandomValues(new Uint8Array(16));
+    //     const fileIVBuffer = await this.cipher.stringToArrayBuffer(this.encryption_data.fileIV);
+    //     console.log(this.encryption_data.fileIV,fileIVBuffer);
 
-        const encryptedWithPrivKey = await this.cipher.encrypt(b64_blob, fileKeyBuffer, fileIVBuffer);
-        // console.log(encryptedWithPin);
+       
+    //     const encryptedWithPrivKey = await this.cipher.encrypt(b64_blob, fileKeyBuffer, fileIVBuffer);
+    //     // console.log(encryptedWithPin);
         
-        const cipherblob = this.cipher.arrayBufferToBase64(encryptedWithPrivKey);
-        console.log(cipherblob);
+    //     const cipherblob = this.cipher.arrayBufferToBase64(encryptedWithPrivKey);
+    //     console.log(cipherblob);
+    // }
+// Quantum.js  ─ inside class Quantum
+async encrypt_chunk(blob, mimetype) {
+    /* convert slice → Base-64 data-URI */
+    const b64Uri = await this.blobToBase64(blob);          // "data:image/png;base64,AAAA…"
 
-        // const decrypted_data = await this.cipher.decrypt(encryptedWithPrivKey, fileKeyBuffer, fileIVBuffer);
-        // console.log(decrypted_data);
+    /* strip the data-URI header so the chunk is *pure* Base-64 text  */
+    const comma   = b64Uri.indexOf(',');
+    const b64Data = comma !== -1 ? b64Uri.slice(comma + 1) : b64Uri;
+
+    /* key / IV (unchanged) */
+    const saltBuf = await this.cipher.stringToArrayBuffer(this.encryption_data.fileSalt);
+    const keyBuf  = await this.cipher.deriveKey(this.encryption_data.priv_key, saltBuf);
+    const ivBuf   = await this.cipher.stringToArrayBuffer(this.encryption_data.fileIV);
+
+    /* encrypt, Base-64-encode, add newline delimiter */
+    const encBuf    = await this.cipher.encrypt(b64Data, keyBuf, ivBuf);
+    const encB64    = this.cipher.arrayBufferToBase64(encBuf) + '\n';
+
+    return new Blob([encB64], { type: '' });
+}
+    // async encrypt_chunk(blob, mimetype){
+    //     console.log(blob, mimetype);
+    //     const b64_blob = await this.blobToBase64(blob);
+    //     console.log(b64_blob);
+    //     // const pinSaltBuffer = window.crypto.getRandomValues(new Uint8Array(16));
+    //     const fileSaltBuffer = await this.cipher.stringToArrayBuffer(this.encryption_data.fileSalt);
+    //     console.log(this.encryption_data.fileSalt,fileSaltBuffer);
+    //     const fileKeyBuffer = await this.cipher.deriveKey(this.encryption_data.priv_key, fileSaltBuffer);
         
-        return new Blob([cipherblob], {type:''});
-    }
+    //     // const pinIvBuffer = window.crypto.getRandomValues(new Uint8Array(16));
+    //     const fileIVBuffer = await this.cipher.stringToArrayBuffer(this.encryption_data.fileIV);
+    //     console.log(this.encryption_data.fileIV,fileIVBuffer);
+         
+    //     // const symkey = Math.random().toString(256).substring(2, 15) + Math.random().toString(256).substring(2, 15);
+    //     const encryptedWithPrivKey = await this.cipher.encrypt(b64_blob, fileKeyBuffer, fileIVBuffer);
+    //     // console.log(encryptedWithPin);
+        
+    //     const cipherblob = this.cipher.arrayBufferToBase64(encryptedWithPrivKey);
+    //     console.log(cipherblob);
+
+
+    //     const decrypted_data = await this.cipher.decrypt(encryptedWithPrivKey, fileKeyBuffer, fileIVBuffer);
+    //     console.log(decrypted_data);
+        
+    //     return new Blob([cipherblob], {type:''});
+    // }
 
     async blobToBase64(blob) {
         return new Promise((resolve, reject) => {
@@ -267,8 +315,9 @@ export class Quantum extends Ajax{
 
     async finalize(file_token){
         const finalize_url = `${this.upload_path}/finish/${file_token}`;
-        try {                        
-            const filename = this.active_uploads[file_token].name;       
+        try {      
+            console.log(this.encryption_data);                  
+            const filename = (this.encryption_data) ? `${this.active_uploads[file_token].name}.encrypted` : this.active_uploads[file_token].name;       
             const result = await this.json(finalize_url, {filename});    
             console.log(result, this.active_uploads);    
             this.active_uploads[file_token].status = 'finished';

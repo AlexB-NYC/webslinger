@@ -1,5 +1,5 @@
 class Autocomplete {
-    constructor(haystack, needle, internal = true, threshold = 0) {
+    constructor(haystack, needle, internal = true, threshold = 0,filter=true) {
         this.haystack = haystack;
         this.needle = needle;
         this.internal = internal;
@@ -9,9 +9,14 @@ class Autocomplete {
         this.currentIndex = -1;  // Tracks the current active item
     }
 
-    init = () => {
+    init = (callback=null) => {
+        console.log(this);
+        this.callback = callback;
         this.needle.addEventListener('input', this.check);
-        this.needle.addEventListener('keydown', this.navigate);  // Add keydown event listener
+        this.needle.addEventListener('keydown', this.navigate);
+        if (this.threshold === 0){
+            this.first_check();
+        }
     }
 
     create = () => {
@@ -24,16 +29,55 @@ class Autocomplete {
         }
     }
 
-    check = (e) => {
-        const value = e.target.value;
-        if (value.length > this.threshold) {
+    first_check = ()=>{
+        const value = this.needle.value;
+        if (value.length >= this.threshold) {
+
+        console.log({value});
+
             if (this.displayed) {
                 this.container.innerHTML = '';
             } else {
                 this.create();
             }
-            const regex = new RegExp('^' + value, 'i'); // Match from the beginning of the string
-            const filtered_haystack = this.haystack.filter(item => regex.test(item));
+            // const regex = new RegExp('^' + value, 'i'); // Match from the beginning of the string
+            // const regex = new RegExp(value, 'i'); // Match from the beginning of the string
+            // const filtered_haystack = this.haystack.filter(item => regex.test(item));
+            const filtered_haystack = this.haystack.filter(item =>
+                item.toLowerCase().includes(value.toLowerCase())
+            );
+            this.disp(filtered_haystack);
+
+            if (filtered_haystack.length === 1) {
+                const suggestion = filtered_haystack[0];
+                this.prefill(suggestion, value);
+            }
+        } else {
+            if (this.container) {
+                this.container.remove();
+                this.container = null;
+                this.displayed = false;
+            }
+        }
+    }
+
+    check = (e) => {
+        const value = e.target.value;
+        if (value.length >= this.threshold) {
+
+        console.log({value});
+
+            if (this.displayed) {
+                this.container.innerHTML = '';
+            } else {
+                this.create();
+            }
+            // const regex = new RegExp('^' + value, 'i'); // Match from the beginning of the string
+            // const regex = new RegExp(value, 'i'); // Match from the beginning of the string
+            // const filtered_haystack = this.haystack.filter(item => regex.test(item));
+            const filtered_haystack = this.haystack.filter(item =>
+                item.toLowerCase().includes(value.toLowerCase())
+            );
             this.disp(filtered_haystack);
 
             if (filtered_haystack.length === 1) {
@@ -78,6 +122,7 @@ class Autocomplete {
             current_haystack.forEach((text, index) => {
                 const button = document.createElement('button');
                 button.textContent = text;
+                button.classList = 'autocomplete-item';
                 button.addEventListener('click', this.select);
                 this.container.appendChild(button);
             });
@@ -122,6 +167,10 @@ class Autocomplete {
             this.container.remove();
             this.container = null;
             this.displayed = false;
+        }
+
+        if (this.callback){
+            this.callback(this.needle.value);
         }
     }
 

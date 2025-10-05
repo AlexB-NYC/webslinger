@@ -15,17 +15,19 @@ class Ajax{
             method: method,
             headers: {
                 'Content-type': 'application/x-www-form-urlencoded'
-            }
+            },
+            credentials: 'same-origin'
         };
     
         if (method !== 'GET') {
             options.body = data;
         }
-    
+        console.log({url,options});
         const response = await fetch(url, options);
         
         if (!response.ok) {
-            throw new Error(`HTTP error! status: ${response.status}`);
+            const error_text = await response.text();
+            throw new Error(`HTTP error! status: ${response.status} | response: ${error_text}`);
         }
     
         return await response.text();
@@ -36,25 +38,35 @@ class Ajax{
     }
 
     async blob(url, blob) {
-        // console.log(url,blob);
-        const response = await fetch(url, {
+        try {
+          const response = await fetch(url, {
             method: 'POST',
             headers: {
-                'Content-type': 'application/x-www-form-urlencoded'
+              'Content-Type': 'application/octet-stream'
             },
             body: blob
-        });
-        
-        if (!response.ok) {
-            throw new Error(`HTTP error! status: ${response.status}`);
+          });
+      
+          if (!response.ok) {
+            // Try to read response text for more details.
+            const errorText = await response.text();
+            // You could also include headers if needed:
+            const errorHeaders = JSON.stringify([...response.headers]);
+            throw new Error(`HTTP error! status: ${response.status}\nResponse Text: ${errorText}\nHeaders: ${errorHeaders}`);
+          }
+          
+          // Try to parse as JSON and return.
+          return await response.json();
+        } catch (error) {
+          console.error('Error in blob():', error);
+          throw error;
         }
-    
-        return await response.json();
-    }
+      }
+      
 
 
     async json(url,data={}){
-        data.session_token = this.session_token;
+        data.session_token = this.session_token;        
         var query = [];
         for (var key in data) {
             query.push(encodeURIComponent(key) + '=' + encodeURIComponent(data[key]));
