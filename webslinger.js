@@ -32,7 +32,7 @@ class Webslinger{
         this.pin = new PINCODE();
         this.qr = QrCreator;
 
-        this.events = new EventEmitter();
+        this.events = this.evt;
 
         window.addEventListener("dragover", function (e) {
             e = e || event;
@@ -63,7 +63,7 @@ class Webslinger{
             for (var id of this.interval.active) {
                 this.clear(id);
             }
-            this.emit("intervals:cleared");
+            this.evt.emit("intervals:cleared");
         }
     }
  
@@ -75,12 +75,12 @@ class Webslinger{
                 const script = document.createElement('script');
                 script.onload = () => {
                     console.log('script loaded - ', src);
-                    this.emit("script:loaded", src);
+                    this.evt.emit("script:loaded", src);
                     resolve();
                 };
                 script.onerror = (error) => {
                     console.error('script load error - ', src);
-                    this.emit("script:error", src, error);
+                    this.evt.emit("script:error", src, error);
                     reject(error);
                 };
                 script.src = `${src}?`;
@@ -88,7 +88,7 @@ class Webslinger{
             });
         }
         console.log('DONE WITH LOOP');
-        this.emit("scripts:done", scripts);
+        this.evt.emit("scripts:done", scripts);
         return true;
     }   
 

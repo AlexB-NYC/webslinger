@@ -22,7 +22,7 @@ class Ajax{
         if (method !== 'GET') {
             options.body = data;
         }
-        console.log({url,options});
+        // console.log({url,options});
         const response = await fetch(url, options);
         
         if (!response.ok) {

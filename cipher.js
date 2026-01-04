@@ -1,4 +1,4 @@
-
+//cipher.js - NEW PLATFORM
 let self;
 
 class Cipher {
