@@ -1,3 +1,4 @@
+// src/core.js
 import Dataman from './dataman.js';
 import Ajax from './ajax.js';
 import {Template} from './template.js';
@@ -33,7 +34,7 @@ class Webslinger{
         //stub until final QR driver decision made
         this.qr = {}
 
-        this.events = this.evt;
+        this.events = this.evt; //backwards compatibility - should reconcile and deprecate
 
         window.addEventListener("dragover", function (e) {
             e = e || event;
@@ -169,20 +170,28 @@ class Webslinger{
         });
                 
     }
+
+    prepend (elem, data, context=document) {
+        if (typeof elem == "string"){elem = this.get(elem, context);}
+        if (!elem) { return; }
+        if (elem.length) { elem.forEach(el => this.prepend(el, data)); return; }
+        if (typeof data === "string") elem.insertAdjacentHTML('afterbegin', data);
+        else elem.prepend(data);
+    }
         
     append (elem, data, context) {
         if (typeof elem == "string") { elem = this.get(elem, context); }
-        console.log(elem);
-        if (typeof data === "string") {
-            elem.insertAdjacentHTML('beforeend', data);
-        } else { elem.appendChild(data); }
+        if (!elem) { return; }
+        if (elem.length) { elem.forEach(el => this.append(el, data)); return; }
+        if (typeof data === "string") elem.insertAdjacentHTML('beforeend', data);
+        else elem.appendChild(data);
     }
 
     insertBefore(elem, data, context) {
         if (typeof elem == "string") { elem = this.get(elem, context); }
-        if (elem) {
-            elem.insertAdjacentHTML('beforebegin', data);
-        }
+        if (!elem) { return; }
+        if (elem.length) { elem.forEach(el => el.insertAdjacentHTML('beforebegin', data)); return; }
+        elem.insertAdjacentHTML('beforebegin', data);
     }
 
     destroy = (elem, context)=>{ 
@@ -205,8 +214,11 @@ class Webslinger{
 
     empty = (elem, context)=>{
         if (typeof elem === "string"){ elem = this.get(elem, context); }
-        if (elem){elem.innerHTML = "";}
+        if (!elem) { return; }
+        if (elem.length) { elem.forEach(el => el.innerHTML = ""); return; }
+        elem.innerHTML = "";
     }
+
 
     dialog = async (template, data, close_check=false) => {
         if (!this.get(`#${this.dialog_content_id}`)) {
@@ -222,56 +234,8 @@ class Webslinger{
         }
     }
 
-    //UNFINISHED FUNCTION FROM OLD MANGO FARM LIBRARIES. NEEDS DEBUGGING
     alpha_sort = (elems_id, result_list_id, reverse=false, search_tag='data-sort', to_upper=true)=>{
-        const word_bank = [];
-        const elems = this.get(elems_id);
-        console.log(elems);
-        // debugger;
-        const elem_container = {}; 
-        if (!elems){
-          return false;
-        }
-  
-        var result_list = this.get(result_list_id);
-
-        if (!result_list){
-          return false;
-        }
-
-        if (elems.length){
-          elems.forEach((elem)=>{
-            let sort_word = (to_upper) ? elem.getAttribute(search_tag).toUpperCase() : elem.getAttribute(search_tag);
-            word_bank.push(sort_word);        
-            elem_container[sort_word] = elem;
-            
-            elem.parentNode.removeChild(elem);
-    
-          });  
-        }
-        const sorted_bank = [...alpha_sort(word_bank, reverse)];
-        console.log('SORT',{word_bank:word_bank,sorted:sorted_bank});
-        debugger;
-        for (let i=0; i<sorted_bank.length; i++){
-          result_list.appendChild(elem_container[word_bank[i]]);
-        } 
-
-        function alpha_sort(word_bank, reverse=false){   
-            if (reverse){
-                word_bank.sort(function(a, b){        
-                if(a < b) { return 1; }
-                if(a > b) { return -1; }
-                return 0;
-                });
-            } else {
-                word_bank.sort(function(a, b){        
-                if(a < b) { return -1; }
-                if(a > b) { return 1; }
-                return 0;
-                });
-            }
-            return word_bank;             
-          }
+        // STUB
     }
 
 
@@ -335,16 +299,6 @@ class Webslinger{
         }
     }
 
-    prepend (elem, data, context=document) {
-        if (typeof elem == "string"){elem = this.get(elem, context);}
-        
-        if (typeof data === "string"){
-            elem.insertAdjacentHTML('afterbegin', data);
-        } else { 
-            elem.prepend(data); 
-        }
-    }
-
     async render (template, data = {}) {   
         const exists = (this.template_cache[template] !== undefined);
         const result = (!exists) ? await this.ajax.go(`/${this.template_dir}/${template}.html?${this.session_token}`, {}, 'GET') : this.template_cache[template];
@@ -355,7 +309,7 @@ class Webslinger{
     }
 
     async insert(template, elem, data={},invade=true, prepend=false){
-        elem = this.get(elem);
+        if (typeof elem === "string") { elem = this.get(elem); }
         const resultHTML = await this.render(template,data);
         if (invade){
             this.invade(elem,resultHTML);
