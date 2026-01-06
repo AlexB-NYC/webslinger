@@ -3,6 +3,7 @@ export default class Events {
   constructor(namespace = "") {
     this.ns = namespace ? String(namespace) : "";
     this._map = new Map();   // event -> Set<fn>
+    this._emitted_once = new Set();
   }
 
   _key(ev) {
@@ -51,6 +52,14 @@ export default class Events {
     if (!event) { this._map.clear(); return; }
     const key = this._key(event);
     this._map.delete(key);
+  }
+
+  emit_once(event, ...args) {
+    const key = this._key(event);
+    if (this._emitted_once.has(key)) return false;
+
+    this._emitted_once.add(key);
+    return this.emit(event, ...args);
   }
 
   emit(event, ...args) {

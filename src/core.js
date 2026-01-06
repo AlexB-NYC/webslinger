@@ -48,17 +48,13 @@ class Webslinger{
 
     
         queueMicrotask(async () => {
-            // Application layer is ready immediately after construction
+            this.evt.once("rendered", async () => {
+                await this.unpreload();
+            });
+
             this.evt.emit("ready", { instance: this });
 
-            // Handle declarative rendering
             await this.auto_render();
-
-            // Prereq DOM is now stable
-            this.evt.emit("rendered", { instance: this });
-
-            // Safe to show page
-            await this.unpreload();
         });
 
     };
@@ -71,35 +67,38 @@ class Webslinger{
 
 
 auto_render = async (root = document) => {
-    await this.dom_ready();
+  await this.dom_ready();
 
-    const scope = (typeof root === 'string') ? this.get(root) : root;
-    if (!scope) { return; }
+  const scope = (typeof root === 'string') ? this.get(root) : root;
+  if (!scope) { return; }
 
-    while (true) {
-        const mounts = [...scope.querySelectorAll('[data-template][render]')];
-        if (!mounts.length) { return; } // NEED TO MAKE MORE ROBUST TO PREVENT INFINITE LOOPS IN EDGE CASES
+  while (true) {
+    const mounts = [...scope.querySelectorAll('[data-template][render]')];
+    if (!mounts.length) { return; }
 
-        const prereq = [];
-        const normal = [];
+    const prereq = [];
+    const normal = [];
 
-        for (const el of mounts) {
-            const mode = el.getAttribute('render'); // "" | "prereq"
-            (mode === 'prereq' ? prereq : normal).push(el);
-        }
-
-        // prereqs first
-        for (const el of prereq) {
-            await this._render_mount(el);
-        }
-
-        // then normals
-        for (const el of normal) {
-            this._render_mount(el);
-        }
-
-        // loop continues until all auto-render elements have been processed
+    for (const el of mounts) {
+      const mode = el.getAttribute('render'); // "" | "prereq"
+      (mode === 'prereq' ? prereq : normal).push(el);
     }
+
+    // prereqs first (blocking)
+    for (const el of prereq) {
+      await this._render_mount(el);
+    }
+    this.evt.emit_once("rendered", { instance: this }); 
+
+    // normals next (parallel non-blocking rendering, emitting event when all are complete)
+    const normal_promises = normal.map(el => this._render_mount(el));
+    if (normal_promises.length) {
+      await Promise.allSettled(normal_promises);
+      this.evt.emit("complete", { instance: this }); 
+    }
+
+    // loop continues until all auto-render content has processed
+  }
 };
 
 
