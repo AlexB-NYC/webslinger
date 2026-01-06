@@ -63,7 +63,7 @@ export default class Events {
   }
 
   emit(event, ...args) {
-    console.log({event});
+    // console.log({event});
     let ok = false;
     const key = this._key(event);
 

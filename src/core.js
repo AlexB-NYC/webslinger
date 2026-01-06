@@ -66,40 +66,46 @@ class Webslinger{
     );
 
 
-auto_render = async (root = document) => {
-  await this.dom_ready();
+    auto_render = async (root = document) => {
+    await this.dom_ready();
 
-  const scope = (typeof root === 'string') ? this.get(root) : root;
-  if (!scope) { return; }
+    const scope = (typeof root === 'string') ? this.get(root) : root;
+    if (!scope) { return; }
 
-  while (true) {
-    const mounts = [...scope.querySelectorAll('[data-template][render]')];
-    if (!mounts.length) { return; }
+    while (true) {
+        const mounts = [...scope.querySelectorAll('[data-template][render]')];
+        if (!mounts.length) {
+            this.evt.emit_once("rendered", { instance: this });
+            this.evt.emit("complete", { instance: this });  
+            return; 
+        }
 
-    const prereq = [];
-    const normal = [];
+        const prereq = [];
+        const normal = [];
 
-    for (const el of mounts) {
-      const mode = el.getAttribute('render'); // "" | "prereq"
-      (mode === 'prereq' ? prereq : normal).push(el);
+        for (const el of mounts) {
+            const mode = el.getAttribute('render'); // "" | "prereq"
+            (mode === 'prereq' ? prereq : normal).push(el);
+        }
+
+        // prereqs first (blocking)
+        for (const el of prereq) {
+            await this._render_mount(el);
+        }
+        this.evt.emit_once("rendered", { instance: this }); 
+
+        // normals next (parallel non-blocking rendering, emitting event when all are complete)
+        const normal_promises = normal.map(el => this._render_mount(el));
+        if (normal_promises.length) {
+            await Promise.allSettled(normal_promises);
+            this.evt.emit("complete", { instance: this }); 
+        } else {
+            this.evt.emit("complete", { instance: this }); 
+        }
+
+        // loop continues until all auto-render content has processed
     }
-
-    // prereqs first (blocking)
-    for (const el of prereq) {
-      await this._render_mount(el);
-    }
-    this.evt.emit_once("rendered", { instance: this }); 
-
-    // normals next (parallel non-blocking rendering, emitting event when all are complete)
-    const normal_promises = normal.map(el => this._render_mount(el));
-    if (normal_promises.length) {
-      await Promise.allSettled(normal_promises);
-      this.evt.emit("complete", { instance: this }); 
-    }
-
-    // loop continues until all auto-render content has processed
-  }
-};
+    };
 
 
     unpreload = async () => {
@@ -110,20 +116,53 @@ auto_render = async (root = document) => {
         });
     };
 
+    _repo_mod = null;
+
+    _load_repo = async () => {
+        if (this._repo_mod) return this._repo_mod;
+
+        try {
+            // cache-bust is fine for now, later you can do a version string
+            this._repo_mod = await import(`/data/repo.js?`);
+            console.log(this._repo_mod);
+            return this._repo_mod;
+        } catch (e) {
+            // repo is optional
+            this._repo_mod = null;
+            return null;
+        }
+    };
+
     _load_dataset = async (src) => {
         if (!src) return null;
 
-        const base = src.replace(/\.(json|js)$/i, '');
-        const base_url = `/data/${base}`;
+        // // allow `jobs`, `jobs.js`, `jobs.json` etc 
+        // const key = String(src).replace(/\.(js|json)$/i, '');
+        
+        const key=src;
+        
 
-        if (/\.json$/i.test(src)) {
-            const res = await fetch(`${base_url}.json`, { cache: 'no-store' });
-            if (!res.ok) throw new Error(`dataset fetch failed (${res.status})`);
-            return await res.json();
+        // 1) repo.js named export
+        const repo = await this._load_repo();
+        const from_repo = repo?.[key];
+        if (Array.isArray(from_repo)) return from_repo;
+
+        // 2) fallback to /data/<key>.js default export
+        try {
+            const mod = await import(`/data/${key}.js?`);
+            const from_default = mod?.default;
+            if (Array.isArray(from_default)) return from_default;
+
+            // Optional: allow named export in the individual file too (doesn’t hurt)
+            const from_named = mod?.[key];
+            if (Array.isArray(from_named)) return from_named;
+
+            console.log(`DATASET ERROR: ${key} did not export an array (repo.js or ${key}.js)`);
+            return null;
+        } catch (e) {
+            console.log(`DATASET LOAD ERROR: failed to load ${key}`, e);
+            return null;
         }
-
-        const mod = await import(`${base_url}.js?`);
-        return mod?.default ?? null;
     };
 
     _render_mount = async (el) => {
