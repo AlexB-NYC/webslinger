@@ -47,8 +47,66 @@ class Webslinger{
         }, false);
 
         //JAVASCRIPT IS WEIRD
-       queueMicrotask(() => console.log('emitting ready...'),this.evt.emit("ready", { instance: this }));
+    //    queueMicrotask(() => console.log('emitting ready...'),this.evt.emit("ready", { instance: this }));
+        queueMicrotask(async () => {
+            // Application layer is ready immediately after construction
+            this.evt.emit("ready", { instance: this });
+
+            // Handle declarative rendering
+            await this.auto_render();
+
+            // Prereq DOM is now stable
+            this.evt.emit("rendered", { instance: this });
+
+            // Safe to show page
+            await this.unpreload();
+        });
+
     };
+
+    dom_ready = () => (
+        document.readyState === 'loading'
+            ? new Promise(r => document.addEventListener('DOMContentLoaded', r, { once: true }))
+            : Promise.resolve()
+    );
+
+
+    auto_render = async () => {
+        await this.dom_ready();
+
+        const mounts = document.querySelectorAll('[data-template][render]');
+        if (!mounts.length) { return; }
+
+        const prereq = [];
+        const normal = [];
+
+        for (const el of mounts) {
+            const mode = el.getAttribute('render'); // "" | "prereq"
+            (mode === 'prereq' ? prereq : normal).push(el);
+        }
+
+        // Render prereqs first (blocking)
+        for (const el of prereq) {
+            const template = el.getAttribute('data-template');
+            await this.insert(template, el, {}, true);
+        }
+
+        // Render non-prereqs (still awaited, but not lifecycle-critical)
+        for (const el of normal) {
+            const template = el.getAttribute('data-template');
+            await this.insert(template, el, {}, true);
+        }
+    };
+
+    unpreload = async () => {
+        await this.dom_ready();
+        await document.fonts?.ready;
+        requestAnimationFrame(() => {
+            document.documentElement.classList.remove('preload');
+        });
+    };
+
+
 
     interval = {
         active : new Set(),
@@ -171,53 +229,88 @@ class Webslinger{
                 
     }
 
-    prepend (elem, data, context=document) {
-        if (typeof elem == "string"){elem = this.get(elem, context);}
-        if (!elem) { return; }
-        if (elem.length) { elem.forEach(el => this.prepend(el, data)); return; }
-        if (typeof data === "string") elem.insertAdjacentHTML('afterbegin', data);
-        else elem.prepend(data);
-    }
-        
-    append (elem, data, context) {
-        if (typeof elem == "string") { elem = this.get(elem, context); }
-        if (!elem) { return; }
-        if (elem.length) { elem.forEach(el => this.append(el, data)); return; }
-        if (typeof data === "string") elem.insertAdjacentHTML('beforeend', data);
-        else elem.appendChild(data);
+    get (string, context=document){
+        if (typeof context === "string") { context = this.get(context); }
+        if (!context) { context = document; }
+
+        // If caller passes NodeList/Array as context, use first element
+        if (context.length && !context.querySelectorAll) { context = context[0] || document; }
+
+        if (typeof string !== 'string') { return string; }
+        if (!string) { return null; }
+
+        let elems;
+        try {
+            elems = context.querySelectorAll(string);
+        } catch (e) {
+            console.log('GET SELECTOR ERROR', { string, e });
+            return null;
+        }
+
+        if (elems.length === 0) { return null; }
+        if (elems.length === 1 && string.charAt(0) !== '.') { return elems[0]; }
+        return [].slice.call(elems);
     }
 
-    insertBefore(elem, data, context) {
-        if (typeof elem == "string") { elem = this.get(elem, context); }
-        if (!elem) { return; }
-        if (elem.length) { elem.forEach(el => el.insertAdjacentHTML('beforebegin', data)); return; }
-        elem.insertAdjacentHTML('beforebegin', data);
+    _each = (elem, context=document, fn) => {
+        if (typeof fn !== "function") { return false; }
+
+        if (typeof context === "string") { context = this.get(context); }
+        if (!context) { context = document; }
+
+        if (typeof elem === "string") { elem = this.get(elem, context); }
+        if (!elem) { return false; }
+
+        const list = Array.isArray(elem)
+            ? elem
+            : (elem && elem.length && typeof elem !== 'string' ? [...elem] : [elem]);
+
+        list.forEach(el => el && el.nodeType && fn(el));
+        return true;
     }
 
-    destroy = (elem, context)=>{ 
-        let str;     
-        if (typeof elem === "string"){ str=elem; elem = this.get(elem, context); } 
-        if (elem && elem.parentNode && elem.parentNode.classList.contains('elem_container')){        
-          this.destroy(elem.parentNode);
-        } else if (elem){ 
-            console.log(elem, elem.length, elem.tagName);
-          if (elem.length && elem.tagName !== 'FORM'){
-            
-            elem.forEach((thisElem)=>{
-              thisElem.parentNode.removeChild(thisElem);
-            });
-          } else {
-            elem.parentNode.removeChild(elem);
-          }              
-        } else { console.log(`ELEMENT ${str} does not exist`); }
-    }
 
-    empty = (elem, context)=>{
-        if (typeof elem === "string"){ elem = this.get(elem, context); }
-        if (!elem) { return; }
-        if (elem.length) { elem.forEach(el => el.innerHTML = ""); return; }
-        elem.innerHTML = "";
-    }
+
+    prepend = (elem, data, context=document) =>
+        this._each(elem, context, el => {
+            if (data == null) { return; }
+            if (typeof data === "string") el.insertAdjacentHTML('afterbegin', data);
+            else if (data.nodeType) el.prepend(data);
+        });
+
+    append = (elem, data, context=document) =>
+        this._each(elem, context, el => {
+            if (data == null) { return; }
+            if (typeof data === "string") el.insertAdjacentHTML('beforeend', data);
+            else if (data.nodeType) el.appendChild(data);
+        });
+
+    insertBefore = (elem, data, context=document) =>
+        this._each(elem, context, el => {
+            if (typeof data !== "string") { return; }
+            el.insertAdjacentHTML('beforebegin', data);
+        });
+
+    invade = (elem, content, context=document) =>
+        this._each(elem, context, el => {
+            if (content == null) { el.innerHTML = ''; return; }
+            if (typeof content === "string") { el.innerHTML = content; return; }
+            if (!(content instanceof Node)) { el.innerHTML = ''; return; }
+            el.innerHTML = '';
+            el.appendChild(content);
+        });
+
+
+    destroy = (elem, context=document) =>
+        this._each(elem, context, el => {
+            const target = (el.parentNode && el.parentNode.classList.contains('elem_container')) ? el.parentNode : el;
+            if (target.parentNode) target.parentNode.removeChild(target);
+        });
+
+
+    empty = (elem, context=document) =>
+        this._each(elem, context, el => { el.innerHTML = ""; });
+
 
 
     dialog = async (template, data, close_check=false) => {
@@ -263,41 +356,6 @@ class Webslinger{
         }.bind(this);
     }
 
-    get (string, context=document){
-        let elems = [];
-        if (typeof context === "string") { context = this.get(context); }
-        if (typeof string === 'string'){
-            elems = context.querySelectorAll(string)
-        } else {
-            return string;
-        } 
-        if (elems.length === 0) { return null; }
-        else if (elems.length === 1 && string.charAt(0) !== '.') { return context.querySelector(string); }
-        else {
-            return [].slice.call(elems);
-        }
-    }
-
-    invade (elem, content, context) {
-        let str;
-        if (typeof elem === "string") { str = elem; elem = this.get(elem, context); }
-        else { str = elem; }
-        if (elem) {
-            if (elem.length && elem.length > 0){
-                elem.forEach((el)=>{
-                    populate_elem(el, content);
-                })
-            } else {
-                populate_elem(elem, content);
-            }
-            
-        } else { console.log(`ELEMENT ${str} does not exist`); }
-
-        function populate_elem(elem,content){
-            if (typeof content === "string") { elem.innerHTML = content; }
-            else { elem.innerHTML = ''; elem.appendChild(content); }
-        }
-    }
 
     async render (template, data = {}) {   
         const exists = (this.template_cache[template] !== undefined);
@@ -305,6 +363,7 @@ class Webslinger{
         this.template_cache[template] = result;
         const thisTemplate = Template(result);
         var content = thisTemplate.interpolate(data, template);
+        console.log({content});
         return content;
     }
 
