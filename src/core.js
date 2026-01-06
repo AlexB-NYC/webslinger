@@ -71,10 +71,14 @@ class Webslinger{
     );
 
 
-    auto_render = async () => {
-        await this.dom_ready();
+auto_render = async (root = document) => {
+    await this.dom_ready();
 
-        const mounts = document.querySelectorAll('[data-template][render]');
+    const scope = (typeof root === 'string') ? this.get(root) : root;
+    if (!scope) { return; }
+
+    while (true) {
+        const mounts = [...scope.querySelectorAll('[data-template][render]')];
         if (!mounts.length) { return; }
 
         const prereq = [];
@@ -85,19 +89,20 @@ class Webslinger{
             (mode === 'prereq' ? prereq : normal).push(el);
         }
 
-        // Render prereqs first (blocking)
+        // prereqs first
         for (const el of prereq) {
             await this._render_mount(el);
         }
 
-        // Render non-prereqs (non-blocking)
+        // then normals
         for (const el of normal) {
-            this._render_mount(el).catch(e =>
-                console.error('auto_render normal failed', { template: el.getAttribute('data-template'), e })
-            );
+            await this._render_mount(el);
         }
 
-    };
+        // loop continues, so anything inserted by these renders will be found next pass
+    }
+};
+
 
     unpreload = async () => {
         await this.dom_ready();
@@ -125,24 +130,29 @@ class Webslinger{
 
     _render_mount = async (el) => {
         const template = el.getAttribute('data-template');
-        const dataset_src = el.getAttribute('data-dataset');
+        const dataset = el.getAttribute('data-dataset');
 
-        if (!dataset_src) {
-            await this.insert(template, el, {}, true);
-            return;
-        }
+        if (!template) { return false; }
 
-        const data = await this._load_dataset(dataset_src);
+        // IMPORTANT: remove render flag immediately to prevent loops
+        el.removeAttribute('render');
 
-        if (Array.isArray(data)) {
-            for (const row of data) {
-                await this.insert(template, el, row ?? {}, false); 
+        if (dataset) {
+            const rows = await this._load_dataset(dataset);
+            if (!Array.isArray(rows)) { return true; }
+
+            this.empty(el);
+
+            for (const row of rows) {
+                await this.insert(template, el, row, false);
             }
-            return;
+            return true;
         }
 
-        await this.insert(template, el, (data && typeof data === 'object') ? data : {}, true);
+        await this.insert(template, el, {}, true);
+        return true;
     };
+
 
 
     interval = {
