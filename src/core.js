@@ -87,15 +87,16 @@ class Webslinger{
 
         // Render prereqs first (blocking)
         for (const el of prereq) {
-            const template = el.getAttribute('data-template');
-            await this.insert(template, el, {}, true);
+            await this._render_mount(el);
         }
 
-        // Render non-prereqs (still awaited, but not lifecycle-critical)
+        // Render non-prereqs (non-blocking)
         for (const el of normal) {
-            const template = el.getAttribute('data-template');
-            await this.insert(template, el, {}, true);
+            this._render_mount(el).catch(e =>
+                console.error('auto_render normal failed', { template: el.getAttribute('data-template'), e })
+            );
         }
+
     };
 
     unpreload = async () => {
@@ -106,6 +107,42 @@ class Webslinger{
         });
     };
 
+    _load_dataset = async (src) => {
+        if (!src) return null;
+
+        const base = src.replace(/\.(json|js)$/i, '');
+        const base_url = `/data/${base}`;
+
+        if (/\.json$/i.test(src)) {
+            const res = await fetch(`${base_url}.json`, { cache: 'no-store' });
+            if (!res.ok) throw new Error(`dataset fetch failed (${res.status})`);
+            return await res.json();
+        }
+
+        const mod = await import(`${base_url}.js?`);
+        return mod?.default ?? null;
+    };
+
+    _render_mount = async (el) => {
+        const template = el.getAttribute('data-template');
+        const dataset_src = el.getAttribute('data-dataset');
+
+        if (!dataset_src) {
+            await this.insert(template, el, {}, true);
+            return;
+        }
+
+        const data = await this._load_dataset(dataset_src);
+
+        if (Array.isArray(data)) {
+            for (const row of data) {
+                await this.insert(template, el, row ?? {}, false); 
+            }
+            return;
+        }
+
+        await this.insert(template, el, (data && typeof data === 'object') ? data : {}, true);
+    };
 
 
     interval = {
@@ -363,7 +400,7 @@ class Webslinger{
         this.template_cache[template] = result;
         const thisTemplate = Template(result);
         var content = thisTemplate.interpolate(data, template);
-        console.log({content});
+        // console.log({content});
         return content;
     }
 
