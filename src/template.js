@@ -25,7 +25,16 @@ export function Template(str) {
               const names = Object.keys(params);
               const vals = Object.values(params);
   
-              const parsed_template = new Function(...names, `return \`${preInterpolatedString}\`;`)(...vals);
+              const scope = new Proxy(Object.assign({}, params), {
+                has() { return true; }, // prevents ReferenceError for missing identifiers
+                get(obj, prop) {
+                  if (typeof prop === "symbol") return undefined;
+                  if (prop in obj) return obj[prop];
+                  return `[MISSING ${String(prop)}]`;
+                }
+              });
+
+              const parsed_template = new Function('scope', `with (scope) { return \`${preInterpolatedString}\`; }`)(scope);
               return parsed_template;
             } catch (error) {
               window.console.log('INTERPOLATION ERROR', error);
