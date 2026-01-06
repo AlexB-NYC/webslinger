@@ -46,8 +46,7 @@ class Webslinger{
             e.preventDefault();
         }, false);
 
-        //JAVASCRIPT IS WEIRD
-    //    queueMicrotask(() => console.log('emitting ready...'),this.evt.emit("ready", { instance: this }));
+    
         queueMicrotask(async () => {
             // Application layer is ready immediately after construction
             this.evt.emit("ready", { instance: this });
@@ -79,7 +78,7 @@ auto_render = async (root = document) => {
 
     while (true) {
         const mounts = [...scope.querySelectorAll('[data-template][render]')];
-        if (!mounts.length) { return; }
+        if (!mounts.length) { return; } // NEED TO MAKE MORE ROBUST TO PREVENT INFINITE LOOPS IN EDGE CASES
 
         const prereq = [];
         const normal = [];
@@ -96,10 +95,10 @@ auto_render = async (root = document) => {
 
         // then normals
         for (const el of normal) {
-            await this._render_mount(el);
+            this._render_mount(el);
         }
 
-        // loop continues, so anything inserted by these renders will be found next pass
+        // loop continues until all auto-render elements have been processed
     }
 };
 

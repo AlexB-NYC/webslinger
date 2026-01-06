@@ -54,26 +54,41 @@ export default class Events {
   }
 
   emit(event, ...args) {
+    console.log({event});
     let ok = false;
-    const call = (key) => {
-      const set = this._map.get(key);
-      if (!set || set.size === 0) return;
-      // copy to array to avoid mutation during iteration
-      [...set].forEach(fn => {
-        try { fn(...args); } catch (e) { console.error("Events listener error", { event: key, e }); }
-      });
-      ok = true;
-    };
+    const key = this._key(event);
 
-    // exact listeners
-    call(this._key(event));
-    // wildcard listeners: "*" receives (event, ...args)
-    call(this._key("*")) && [...this._map.get(this._key("*")) || []].forEach(fn => {
-      try { fn(event, ...args); } catch (e) { console.error("Events * listener error", e); }
-    });
+    const call = (k) => {
+      const set = this._map.get(k);
+      if (!set || set.size === 0) return false;
+      [...set].forEach(fn => {
+        try { fn(...args); }
+        catch (e) { console.error("Events listener error", { event: k, e }); }
+      });
+      return true;
+    };
+    console.log({key,call});
+
+    // internal listeners
+    ok = call(key) || ok;
+
+    // wildcard listeners
+    ok = call(this._key("*")) || ok;
+
+    // 🔑 DOM event bridge
+    try {
+      window.dispatchEvent(
+        new CustomEvent(key, {
+          detail: args.length <= 1 ? args[0] : args
+        })
+      );
+    } catch (e) {
+      console.error("Events DOM dispatch error", { event: key, e });
+    }
 
     return ok;
   }
+
 
   async emitAsync(event, ...args) {
     const key = this._key(event);
