@@ -47,8 +47,66 @@ class Webslinger{
         }, false);
 
         //JAVASCRIPT IS WEIRD
-       queueMicrotask(() => console.log('emitting ready...'),this.evt.emit("ready", { instance: this }));
+    //    queueMicrotask(() => console.log('emitting ready...'),this.evt.emit("ready", { instance: this }));
+        queueMicrotask(async () => {
+            // Application layer is ready immediately after construction
+            this.evt.emit("ready", { instance: this });
+
+            // Handle declarative rendering
+            await this.auto_render();
+
+            // Prereq DOM is now stable
+            this.evt.emit("rendered", { instance: this });
+
+            // Safe to show page
+            await this.unpreload();
+        });
+
     };
+
+    dom_ready = () => (
+        document.readyState === 'loading'
+            ? new Promise(r => document.addEventListener('DOMContentLoaded', r, { once: true }))
+            : Promise.resolve()
+    );
+
+
+    auto_render = async () => {
+        await this.dom_ready();
+
+        const mounts = document.querySelectorAll('[data-template][render]');
+        if (!mounts.length) { return; }
+
+        const prereq = [];
+        const normal = [];
+
+        for (const el of mounts) {
+            const mode = el.getAttribute('render'); // "" | "prereq"
+            (mode === 'prereq' ? prereq : normal).push(el);
+        }
+
+        // Render prereqs first (blocking)
+        for (const el of prereq) {
+            const template = el.getAttribute('data-template');
+            await this.insert(template, el, {}, true);
+        }
+
+        // Render non-prereqs (still awaited, but not lifecycle-critical)
+        for (const el of normal) {
+            const template = el.getAttribute('data-template');
+            await this.insert(template, el, {}, true);
+        }
+    };
+
+    unpreload = async () => {
+        await this.dom_ready();
+        await document.fonts?.ready;
+        requestAnimationFrame(() => {
+            document.documentElement.classList.remove('preload');
+        });
+    };
+
+
 
     interval = {
         active : new Set(),
