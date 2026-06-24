@@ -36,6 +36,14 @@ class Webslinger{
 
         this.events = this.evt; //backwards compatibility - should reconcile and deprecate
 
+        /*
+         * Complete deferrals allow subclasses/apps to block the public
+         * webslinger:complete event until their async initialization work has
+         * finished. This is intentionally generic so Webslinger does not need
+         * ExMachina-specific knowledge.
+         */
+        this._completeDeferrals = new Map();
+
         window.addEventListener("dragover", function (e) {
             e = e || event;
             e.preventDefault();
@@ -65,46 +73,126 @@ class Webslinger{
             : Promise.resolve()
     );
 
+    defer_complete = (label="anonymous") => {
+        const token = Symbol(label);
+        let settled = false;
+        let resolve_promise;
+        let reject_promise;
+
+        const promise = new Promise((resolve, reject) => {
+            resolve_promise = resolve;
+            reject_promise = reject;
+        });
+
+        const remove = () => {
+            this._completeDeferrals.delete(token);
+        };
+
+        const deferral = {
+            label,
+            promise,
+            release: () => {
+                if (settled) { return false; }
+                settled = true;
+                remove();
+                resolve_promise(true);
+                this.evt.emit("complete:deferred:released", {
+                    instance: this,
+                    label,
+                    pending: this._completeDeferrals.size,
+                });
+                return true;
+            },
+            reject: (error = new Error(`Complete deferral failed: ${label}`)) => {
+                if (settled) { return false; }
+                settled = true;
+                remove();
+                reject_promise(error);
+                this.evt.emit("complete:deferred:rejected", {
+                    instance: this,
+                    label,
+                    error,
+                    pending: this._completeDeferrals.size,
+                });
+                return true;
+            },
+        };
+
+        this._completeDeferrals.set(token, deferral);
+
+        this.evt.emit("complete:deferred", {
+            instance: this,
+            label,
+            pending: this._completeDeferrals.size,
+        });
+
+        return deferral;
+    }
+
+    _wait_for_complete_deferrals = async () => {
+        while (this._completeDeferrals.size) {
+            const pending = [...this._completeDeferrals.values()].map(deferral => deferral.promise);
+            await Promise.all(pending);
+        }
+    }
+
+    _emit_complete = async () => {
+        try {
+            await this._wait_for_complete_deferrals();
+            this.evt.emit("complete", { instance: this });
+            return true;
+        } catch (error) {
+            this.evt.emit("complete:error", {
+                instance: this,
+                error,
+            });
+            return false;
+        }
+    }
 
     auto_render = async (root = document) => {
-    await this.dom_ready();
+        await this.dom_ready();
 
-    const scope = (typeof root === 'string') ? this.get(root) : root;
-    if (!scope) { return; }
-
-    while (true) {
-        const mounts = [...scope.querySelectorAll('[data-template][render]')];
-        if (!mounts.length) {
+        const scope = (typeof root === 'string') ? this.get(root) : root;
+        if (!scope) {
             this.evt.emit_once("rendered", { instance: this });
-            this.evt.emit("complete", { instance: this });  
-            return; 
+            await this._emit_complete();
+            return;
         }
 
-        const prereq = [];
-        const normal = [];
+        while (true) {
+            const mounts = [...scope.querySelectorAll('[data-template][render]')];
 
-        for (const el of mounts) {
-            const mode = el.getAttribute('render'); // "" | "prereq"
-            (mode === 'prereq' ? prereq : normal).push(el);
+            if (!mounts.length) {
+                break;
+            }
+
+            const prereq = [];
+            const normal = [];
+
+            for (const el of mounts) {
+                const mode = el.getAttribute('render'); // "" | "prereq"
+                (mode === 'prereq' ? prereq : normal).push(el);
+            }
+
+            // prereqs first (blocking)
+            for (const el of prereq) {
+                await this._render_mount(el);
+            }
+
+            this.evt.emit_once("rendered", { instance: this }); 
+
+            // normals next (parallel non-blocking rendering)
+            const normal_promises = normal.map(el => this._render_mount(el));
+            if (normal_promises.length) {
+                await Promise.allSettled(normal_promises);
+            }
+
+            // loop continues until all auto-render content has processed
         }
 
-        // prereqs first (blocking)
-        for (const el of prereq) {
-            await this._render_mount(el);
-        }
-        this.evt.emit_once("rendered", { instance: this }); 
-
-        // normals next (parallel non-blocking rendering, emitting event when all are complete)
-        const normal_promises = normal.map(el => this._render_mount(el));
-        if (normal_promises.length) {
-            await Promise.allSettled(normal_promises);
-            this.evt.emit("complete", { instance: this }); 
-        } else {
-            this.evt.emit("complete", { instance: this }); 
-        }
-
-        // loop continues until all auto-render content has processed
-    }
+        this.evt.emit_once("rendered", { instance: this });
+        await this._emit_complete();
     };
 
 
