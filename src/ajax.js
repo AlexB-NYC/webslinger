@@ -1,7 +1,10 @@
 import Dataman from './dataman.js';
+import { create_logger, describe_url } from './logger.js';
+
+const logger = create_logger('Ajax');
 
 class Ajax{
-  
+
     constructor(session_token='anonymous'){
         this.session_token = session_token;
         this.dataman = new Dataman();
@@ -9,7 +12,7 @@ class Ajax{
         this.ipfs_gateway = 'https://gateway.ipfs-upload.com/ipfs/';
     };
 
-    
+
     async go(url, data, method='POST') {
         const options = {
             method: method,
@@ -18,23 +21,38 @@ class Ajax{
             },
             credentials: 'same-origin'
         };
-    
+
         if (method !== 'GET') {
             options.body = data;
         }
-        // console.log({url,options});
+        logger.debug('Request started', {
+            method,
+            url: describe_url(url),
+            has_body: method !== 'GET',
+        });
         const response = await fetch(url, options);
-        
+
         if (!response.ok) {
             const error_text = await response.text();
+            logger.warn('Request failed', {
+                method,
+                url: describe_url(url),
+                status: response.status,
+                response_size: error_text.length,
+            });
             throw new Error(`HTTP error! status: ${response.status} | response: ${error_text}`);
         }
-    
+
+        logger.debug('Request completed', {
+            method,
+            url: describe_url(url),
+            status: response.status,
+        });
         return await response.text();
     }
-    
-    async head(url){       
-        return (this.go(url,{},'HEAD'));                         
+
+    async head(url){
+        return (this.go(url,{},'HEAD'));
     }
 
     async blob(url, blob) {
@@ -46,7 +64,7 @@ class Ajax{
             },
             body: blob
           });
-      
+
           if (!response.ok) {
             // Try to read response text for more details.
             const errorText = await response.text();
@@ -54,76 +72,88 @@ class Ajax{
             const errorHeaders = JSON.stringify([...response.headers]);
             throw new Error(`HTTP error! status: ${response.status}\nResponse Text: ${errorText}\nHeaders: ${errorHeaders}`);
           }
-          
+
           // Try to parse as JSON and return.
           return await response.json();
         } catch (error) {
-          console.error('Error in blob():', error);
+          logger.error('Blob upload failed', {
+            url: describe_url(url),
+            blob_size: blob?.size ?? null,
+            error,
+          });
           throw error;
         }
       }
-      
+
 
 
     async json(url,data={}){
-        data.session_token = this.session_token;        
+        data.session_token = this.session_token;
         var query = [];
         for (var key in data) {
             query.push(encodeURIComponent(key) + '=' + encodeURIComponent(data[key]));
         }
-        
-        const result = await this.go(url,query.join('&'));  
+
+        const result = await this.go(url,query.join('&'));
         try{
             return JSON.parse(result);
         } catch (err){
             return result;
-        }      
-        
+        }
+
     }
 
     ipfs = async (ipfs_hash) => {
+        const url = `${this.ipfs_gateway}${ipfs_hash}`;
         try{
-            const url = `${this.ipfs_gateway}${ipfs_hash}`;
             const response = await fetch(url);
-        
+
             const content_type = response.headers.get("content-type");
-        
+
             switch (content_type.toLowerCase()){
                 case 'application/json; charset=utf-8':
                 case 'text/html; charset=utf-8':
                 case 'application/json':
-                return response.json(); // get JSON from the response 
+                return response.json(); // get JSON from the response
                 break;
-                
+
 
                 default:
                 return response.blob();
                 break;
             }
         } catch (error){
-            console.log('JSON FETCH ERROR', error, url);
+            logger.error('IPFS fetch failed', {
+                gateway: describe_url(this.ipfs_gateway),
+                hash_length: String(ipfs_hash ?? '').length,
+                error,
+            });
         }
-        
+
     }
 
     async post(url,data){
-        return await this.json(url,data);       
+        return await this.json(url,data);
     }
 
-    async form(url,formData){        
+    async form(url,formData){
         const self = this;
-        var xhr = new XMLHttpRequest();          
+        var xhr = new XMLHttpRequest();
         xhr.onreadystatechange = function () {
             if (xhr.readyState == 4) {
-                console.log('form resp',xhr.responseText);
+                logger.debug('Form request completed', {
+                    url: describe_url(url),
+                    status: xhr.status,
+                    response_size: xhr.responseText?.length ?? 0,
+                });
                 result = self.parseJSON(xhr.responseText);
-                return result; 
+                return result;
             }
         };
         xhr.open('POST', url, true);
-        xhr.send(formData);                  
-    }        
-    
+        xhr.send(formData);
+    }
+
 }
 
 export default Ajax;

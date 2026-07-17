@@ -7,8 +7,11 @@ import Cipher from './cipher.js';
 import PINCODE from './pin.js';
 import Autocomplete from './autocomplete.js';
 import Events from './events.js';
+import { create_logger, describe_url } from './logger.js';
 
-class Webslinger{    
+const logger = create_logger('Core');
+
+class Webslinger{
     constructor(namespace="webslinger"){
         this.template_dir = 'interface';
         this.evt = new Events(namespace);
@@ -28,9 +31,9 @@ class Webslinger{
         this.quantum = new Quantum(this.session_token);
 
         this.cipher = new Cipher();
-        
+
         this.pin = new PINCODE();
-        
+
         //stub until final QR driver decision made
         this.qr = {}
 
@@ -44,6 +47,11 @@ class Webslinger{
          */
         this._completeDeferrals = new Map();
 
+        logger.info('Instance initialized', {
+            namespace,
+            restored_session: Boolean(session_check),
+        });
+
         window.addEventListener("dragover", function (e) {
             e = e || event;
             e.preventDefault();
@@ -54,12 +62,13 @@ class Webslinger{
             e.preventDefault();
         }, false);
 
-    
+
         queueMicrotask(async () => {
             this.evt.once("rendered", async () => {
                 await this.unpreload();
             });
 
+            logger.info('Ready lifecycle started');
             this.evt.emit("ready", { instance: this });
 
             await this.auto_render();
@@ -101,6 +110,10 @@ class Webslinger{
                     label,
                     pending: this._completeDeferrals.size,
                 });
+                logger.debug('Completion deferral released', {
+                    label,
+                    pending_count: this._completeDeferrals.size,
+                });
                 return true;
             },
             reject: (error = new Error(`Complete deferral failed: ${label}`)) => {
@@ -114,11 +127,21 @@ class Webslinger{
                     error,
                     pending: this._completeDeferrals.size,
                 });
+                logger.error('Completion deferral rejected', {
+                    label,
+                    pending_count: this._completeDeferrals.size,
+                    error,
+                });
                 return true;
             },
         };
 
         this._completeDeferrals.set(token, deferral);
+
+        logger.debug('Completion deferred', {
+            label,
+            pending_count: this._completeDeferrals.size,
+        });
 
         this.evt.emit("complete:deferred", {
             instance: this,
@@ -140,12 +163,14 @@ class Webslinger{
         try {
             await this._wait_for_complete_deferrals();
             this.evt.emit("complete", { instance: this });
+            logger.info('Complete lifecycle emitted');
             return true;
         } catch (error) {
             this.evt.emit("complete:error", {
                 instance: this,
                 error,
             });
+            logger.error('Complete lifecycle failed', { error });
             return false;
         }
     }
@@ -175,12 +200,18 @@ class Webslinger{
                 (mode === 'prereq' ? prereq : normal).push(el);
             }
 
+            logger.debug('Auto-render batch discovered', {
+                mount_count: mounts.length,
+                prerequisite_count: prereq.length,
+                normal_count: normal.length,
+            });
+
             // prereqs first (blocking)
             for (const el of prereq) {
                 await this._render_mount(el);
             }
 
-            this.evt.emit_once("rendered", { instance: this }); 
+            this.evt.emit_once("rendered", { instance: this });
 
             // normals next (parallel non-blocking rendering)
             const normal_promises = normal.map(el => this._render_mount(el));
@@ -212,11 +243,16 @@ class Webslinger{
         try {
             // cache-bust is fine for now, later you can do a version string
             this._repo_mod = await import(`/data/repo.js?`);
-            console.log(this._repo_mod);
+            logger.debug('Shared data repository loaded', {
+                export_count: Object.keys(this._repo_mod ?? {}).length,
+            });
             return this._repo_mod;
-        } catch (e) {
+        } catch (error) {
             // repo is optional
             this._repo_mod = null;
+            logger.debug('Shared data repository unavailable', {
+                error_name: error?.name ?? 'Error',
+            });
             return null;
         }
     };
@@ -224,31 +260,49 @@ class Webslinger{
     _load_dataset = async (src) => {
         if (!src) return null;
 
-        // // allow `jobs`, `jobs.js`, `jobs.json` etc 
+        // // allow `jobs`, `jobs.js`, `jobs.json` etc
         // const key = String(src).replace(/\.(js|json)$/i, '');
-        
+
         const key=src;
-        
+
 
         // 1) repo.js named export
         const repo = await this._load_repo();
         const from_repo = repo?.[key];
-        if (Array.isArray(from_repo)) return from_repo;
+        if (Array.isArray(from_repo)) {
+            logger.debug('Dataset loaded from shared repository', {
+                dataset: key,
+                row_count: from_repo.length,
+            });
+            return from_repo;
+        }
 
         // 2) fallback to /data/<key>.js default export
         try {
             const mod = await import(`/data/${key}.js?`);
             const from_default = mod?.default;
-            if (Array.isArray(from_default)) return from_default;
+            if (Array.isArray(from_default)) {
+                logger.debug('Dataset loaded from default export', {
+                    dataset: key,
+                    row_count: from_default.length,
+                });
+                return from_default;
+            }
 
             // Optional: allow named export in the individual file too (doesn’t hurt)
             const from_named = mod?.[key];
-            if (Array.isArray(from_named)) return from_named;
+            if (Array.isArray(from_named)) {
+                logger.debug('Dataset loaded from named export', {
+                    dataset: key,
+                    row_count: from_named.length,
+                });
+                return from_named;
+            }
 
-            console.log(`DATASET ERROR: ${key} did not export an array (repo.js or ${key}.js)`);
+            logger.warn('Dataset export is not an array', { dataset: key });
             return null;
-        } catch (e) {
-            console.log(`DATASET LOAD ERROR: failed to load ${key}`, e);
+        } catch (error) {
+            logger.error('Dataset load failed', { dataset: key, error });
             return null;
         }
     };
@@ -298,20 +352,25 @@ class Webslinger{
             this.evt.emit("intervals:cleared");
         }
     }
- 
+
     load_external= async (script_list)=>{
         const scripts = Array.isArray(script_list) ? script_list : [script_list];
-    
+
         for (let src of scripts) {
             await new Promise((resolve, reject) => {
                 const script = document.createElement('script');
                 script.onload = () => {
-                    console.log('script loaded - ', src);
+                    logger.info('External script loaded', {
+                        url: describe_url(src),
+                    });
                     this.evt.emit("script:loaded", src);
                     resolve();
                 };
                 script.onerror = (error) => {
-                    console.error('script load error - ', src);
+                    logger.error('External script failed', {
+                        url: describe_url(src),
+                        error,
+                    });
                     this.evt.emit("script:error", src, error);
                     reject(error);
                 };
@@ -319,10 +378,12 @@ class Webslinger{
                 document.head.appendChild(script);
             });
         }
-        console.log('DONE WITH LOOP');
+        logger.info('External script batch completed', {
+            script_count: scripts.length,
+        });
         this.evt.emit("scripts:done", scripts);
         return true;
-    }   
+    }
 
     initialized = ()=>{
         return true;
@@ -338,7 +399,11 @@ class Webslinger{
 
     clipboard =  (str)=>{
         return async (e)=>{
-            return navigator.clipboard.writeText(str).then(() => console.log("Copied!", str));
+            return navigator.clipboard.writeText(str).then(() => {
+                logger.info('Clipboard write completed', {
+                    content_length: str?.length ?? 0,
+                });
+            });
         }
     }
 
@@ -356,12 +421,15 @@ class Webslinger{
 
     copy_init = (copy_elem,str)=>{
         if (typeof copy_elem === 'string'){copy_elem = this.get(copy_elem)}
-        console.log({copy_elem, str});
+        logger.debug('Copy control initialized', {
+            element_found: Boolean(copy_elem),
+            content_length: str?.length ?? 0,
+        });
         copy_elem.addEventListener('click', ()=>{
-                    
+
             if (navigator.clipboard && navigator.clipboard.writeText) {
                 // Modern API
-                console.log('copy', str)
+                logger.debug('Using Clipboard API');
                 this.clipboard(str)();
                 } else {
                 // Fallback for Safari/iOS and older browsers
@@ -381,13 +449,13 @@ class Webslinger{
                     document.body.appendChild(text_area);
                     text_area.focus();
                     text_area.select();
-                
+
                     let success = false;
                     try {
                         success = document.execCommand('copy');
-                        console.log('Fallback: Copying text command was', success ? 'successful' : 'unsuccessful');
+                        logger.info('Fallback clipboard write completed', { success });
                     } catch (err) {
-                        console.error('Fallback: Oops, unable to copy', err);
+                        logger.error('Fallback clipboard write failed', { error: err });
                     }
                 }
                 const copy_msg = document.createElement('div');
@@ -398,7 +466,7 @@ class Webslinger{
                     this.app.destroy(copy_msg);
                 },1500)
         });
-                
+
     }
 
     get (string, context=document){
@@ -414,8 +482,11 @@ class Webslinger{
         let elems;
         try {
             elems = context.querySelectorAll(string);
-        } catch (e) {
-            console.log('GET SELECTOR ERROR', { string, e });
+        } catch (error) {
+            logger.warn('Invalid DOM selector', {
+                selector: string,
+                error,
+            });
             return null;
         }
 
@@ -506,7 +577,7 @@ class Webslinger{
 
     openDialog = (content)=>{
         if (this.get('#dialog_content')) {
-            this.invade('#dialog_content', content);    
+            this.invade('#dialog_content', content);
         } else {
             this.append('body', content);
         }
@@ -529,13 +600,12 @@ class Webslinger{
     }
 
 
-    async render (template, data = {}) {   
+    async render (template, data = {}) {
         const exists = (this.template_cache[template] !== undefined);
         const result = (!exists) ? await this.ajax.go(`/${this.template_dir}/${template}.html?${this.session_token}`, {}, 'GET') : this.template_cache[template];
         this.template_cache[template] = result;
         const thisTemplate = Template(result);
         var content = thisTemplate.interpolate(data, template);
-        // console.log({content});
         return content;
     }
 
@@ -552,11 +622,11 @@ class Webslinger{
             } else {
                 this.append(elem,resultHTML);
                 return data;
-            }            
-        }            
+            }
+        }
     }
 
-    
+
 
     async_upload = async (input_id='.async_file', single=true, callback=null)=>{
         return new Promise((resolve) => {
@@ -570,12 +640,16 @@ class Webslinger{
             });
 
             const file_inputs = this.get(input_id);
-            console.log('FILE INPUTS', file_inputs, typeof file_inputs, input_id, single);
+            logger.debug('Async upload controls initialized', {
+                selector: input_id,
+                single,
+                input_count: file_inputs?.length ?? (file_inputs ? 1 : 0),
+            });
             file_inputs?.forEach((input)=>{
                 const changeHandler = ()=>{
                     const this_file = input.files[0];
                     file = this_file;
-                    
+
                     if (single){
                         input.removeEventListener('change', changeHandler);
                     }
@@ -587,7 +661,7 @@ class Webslinger{
                 }
                 input.addEventListener('change', changeHandler);
             })
-            
+
         });
     }
 
@@ -599,53 +673,65 @@ class Webslinger{
             }
 
             const async_forms = this.get('.async_form');
-            console.log(async_forms);
+            logger.debug('Async form options initialized', {
+                form_count: async_forms?.length ?? (async_forms ? 1 : 0),
+            });
             async_forms?.forEach((form)=>{
                 const submitHandler = (e) => {
                     e.preventDefault();
                     const form_data = this.dataman.jsonify(form);
                     resolve(form_data);
-                    form.removeEventListener('submit', submitHandler); 
+                    form.removeEventListener('submit', submitHandler);
                   };
                   form.addEventListener('submit', submitHandler);
             });
 
             const options = this.get('.async_option');
-            console.log(options);
-            
+            logger.debug('Async click options initialized', {
+                option_count: options?.length ?? (options ? 1 : 0),
+                option_field,
+            });
+
             options?.forEach((option)=>{
                 const clickHandler = () => {
                     const selected_option = option.getAttribute(option_field);
                     resolve(selected_option);
-                    option.removeEventListener('click', clickHandler); 
+                    option.removeEventListener('click', clickHandler);
                   };
                   option.addEventListener('click', clickHandler);
             });
 
         });
     }
-    
+
     load_script= async (script_list)=>{
         const scripts = Array.isArray(script_list) ? script_list : [script_list];
-    
+
         for (let src of scripts) {
             await new Promise((resolve, reject) => {
                 const script = document.createElement('script');
                 script.onload = () => {
-                    console.log('script loaded - ', src);
+                    logger.info('Script loaded', {
+                        url: describe_url(src),
+                    });
                     resolve();
                 };
                 script.onerror = (error) => {
-                    console.error('script load error - ', src);
+                    logger.error('Script failed', {
+                        url: describe_url(src),
+                        error,
+                    });
                     reject(error);
                 };
                 script.src = `${src}?`;
                 document.head.appendChild(script);
             });
         }
-        console.log('DONE WITH LOOP');
+        logger.info('Script batch completed', {
+            script_count: scripts.length,
+        });
         return true;
-    }    
+    }
 }
 
 export default Webslinger;

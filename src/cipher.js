@@ -1,4 +1,8 @@
 //cipher.js - NEW PLATFORM
+import { create_logger } from './logger.js';
+
+const logger = create_logger('Cipher');
+
 let self;
 
 class Cipher {
@@ -6,16 +10,16 @@ class Cipher {
     this.blind_salt = "6Hz344tz7MHsCJ7uajdiJQ==";
     this.blind_iv = "/ZHFzyvlrcHbl9xnk06LWA==";
   }
-  
+
 
   getEntropy(callback) {
+      logger.info('Entropy collection started');
       const crypto = window.crypto || window.mscrypto;
       let finals = new Uint32Array(8);
       self.counter = null;
       finals = self.csprng_entropy(finals, crypto);
       finals = self.timing_entropy(finals, crypto);
       finals = self.mouse_entropy(finals, crypto, callback);
-      console.log('HEX', this.hex);
   }
 
   csprng_entropy(buf, crypto) {
@@ -45,8 +49,8 @@ class Cipher {
       for (let i = 0; i < results.length; i++) {
         buf[i] ^= results[i];
       }
-    }).catch(function(e) {
-      console.error(e);
+    }).catch(function(error) {
+      logger.error('Timing entropy digest failed', { error });
     });
     return buf;
   }
@@ -78,8 +82,8 @@ class Cipher {
           for (let i = 0; i < results.length; i++) {
             buf[i] ^= results[i];
           }
-        }).catch(function(e) {
-          console.error(e);
+        }).catch(function(error) {
+          logger.error('Pointer entropy digest failed', { error });
         });
 
         let hex = '';
@@ -90,7 +94,9 @@ class Cipher {
 
         // self./commitEntropy(hex);
         this.hex = hex;
-        console.log('HEX?', this.hex);
+        logger.info('Entropy collection completed', {
+          entropy_bits: hex.length * 4,
+        });
         callback(hex);
       } else {
         coords[self.counter] = window.screen.width * e.y + e.x;
@@ -129,11 +135,13 @@ class Cipher {
     );
   }
 
-  async blind_encrypt (data, keystring){    
+  async blind_encrypt (data, keystring){
     const iv = this.base64ToArrayBuffer(this.blind_iv);
     const salt = this.base64ToArrayBuffer(this.blind_salt);
     const key = await this.deriveKey(keystring,salt);
-    console.log({iv,salt,key, keystring, data});
+    logger.debug('Blind encryption started', {
+      input_size: data?.byteLength ?? data?.length ?? null,
+    });
     return this.encrypt(data,key,iv);
 
   }
@@ -142,7 +150,9 @@ class Cipher {
     const iv = this.base64ToArrayBuffer(this.blind_iv);
     const salt = this.base64ToArrayBuffer(this.blind_salt);
     const key = await this.deriveKey(keystring,salt);
-    console.log(ciphertext,keystring,iv,salt,key);
+    logger.debug('Blind decryption started', {
+      ciphertext_size: ciphertext?.byteLength ?? ciphertext?.length ?? null,
+    });
     return this.decrypt(ciphertext,key,iv);
   }
 
@@ -159,7 +169,7 @@ class Cipher {
     return encrypted;
   }
 
-  
+
   async decrypt(ciphertext, key, iv) {
     const decrypted = await window.crypto.subtle.decrypt(
       {
@@ -194,7 +204,11 @@ class Cipher {
   }
 
   base64ToBlob(base64, contentType = '', sliceSize = 512) {
-    console.log('***decoding***', base64);
+    logger.debug('Base64 payload converted to blob', {
+      encoded_size: base64?.length ?? 0,
+      content_type: contentType || 'unspecified',
+      slice_size: sliceSize,
+    });
     const byteCharacters = atob(base64);
     const byteArrays = [];
 
@@ -228,16 +242,16 @@ class Cipher {
   async stringToArrayBuffer(inputString) {
     const encoder = new TextEncoder();
     const data = encoder.encode(inputString);
-    
+
     // Use a cryptographic hash function like SHA-256
     const hashBuffer = await crypto.subtle.digest('SHA-256', data);
-    
+
     // Truncate the hash to 16 bytes
     const truncatedHashBuffer = hashBuffer.slice(0, 16);
-    
+
     // Convert the truncated hash buffer to Uint8Array
     const arrayBuffer = new Uint8Array(truncatedHashBuffer);
-    
+
     return arrayBuffer;
   }
 
