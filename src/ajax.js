@@ -13,30 +13,85 @@ class Ajax{
     };
 
 
-    async go(url, data, method='POST') {
-        const options = {
-            method: method,
-            headers: {
-                'Content-type': 'application/x-www-form-urlencoded'
-            },
+    _form_encode = (data, use_session_token=true) => {
+        var query = [];
+
+        if (typeof data === 'string') {
+            if (data) { query.push(data); }
+        } else if (typeof URLSearchParams !== 'undefined' && data instanceof URLSearchParams) {
+            for (const [key, value] of data.entries()) {
+                if (use_session_token && key === 'session_token') { continue; }
+                query.push(encodeURIComponent(key) + '=' + encodeURIComponent(value));
+            }
+        } else if (data != null) {
+            for (var key in data) {
+                if (use_session_token && key === 'session_token') { continue; }
+                query.push(encodeURIComponent(key) + '=' + encodeURIComponent(data[key]));
+            }
+        }
+
+        if (use_session_token) {
+            query.push('session_token=' + encodeURIComponent(this.session_token));
+        }
+
+        return query.join('&');
+    }
+
+    _append_query_param = (url, key, value) => {
+        const string_url = String(url);
+        const hash_index = string_url.indexOf('#');
+        const hash = hash_index === -1 ? '' : string_url.slice(hash_index);
+        const base_url = hash_index === -1 ? string_url : string_url.slice(0, hash_index);
+        const separator = base_url.includes('?')
+            ? (base_url.endsWith('?') || base_url.endsWith('&') ? '' : '&')
+            : '?';
+
+        return `${base_url}${separator}${encodeURIComponent(key)}=${encodeURIComponent(value)}${hash}`;
+    }
+
+    async go(url, data={}, method='POST', request_options={}) {
+        const {
+            form_encode = true,
+            use_session_token = true,
+        } = request_options ?? {};
+        const request_method = String(method).toUpperCase();
+        const has_body = request_method !== 'GET' && request_method !== 'HEAD';
+        let request_url = url;
+
+        const fetch_options = {
+            method: request_method,
             credentials: 'same-origin'
         };
 
-        if (method !== 'GET') {
-            options.body = data;
+        if (has_body) {
+            if (form_encode) {
+                fetch_options.headers = {
+                    'Content-type': 'application/x-www-form-urlencoded'
+                };
+                fetch_options.body = this._form_encode(data, use_session_token);
+            } else {
+                fetch_options.body = data;
+            }
         }
+
+        if (use_session_token && (!has_body || !form_encode)) {
+            request_url = this._append_query_param(request_url, 'session_token', this.session_token);
+        }
+
         logger.debug('Request started', {
-            method,
-            url: describe_url(url),
-            has_body: method !== 'GET',
+            method: request_method,
+            url: describe_url(request_url),
+            has_body,
+            form_encode,
+            use_session_token,
         });
-        const response = await fetch(url, options);
+        const response = await fetch(request_url, fetch_options);
 
         if (!response.ok) {
             const error_text = await response.text();
             logger.warn('Request failed', {
-                method,
-                url: describe_url(url),
+                method: request_method,
+                url: describe_url(request_url),
                 status: response.status,
                 response_size: error_text.length,
             });
@@ -44,15 +99,15 @@ class Ajax{
         }
 
         logger.debug('Request completed', {
-            method,
-            url: describe_url(url),
+            method: request_method,
+            url: describe_url(request_url),
             status: response.status,
         });
         return await response.text();
     }
 
-    async head(url){
-        return (this.go(url,{},'HEAD'));
+    async head(url, request_options={}){
+        return (this.go(url,{},'HEAD',request_options));
     }
 
     async blob(url, blob) {
@@ -87,14 +142,8 @@ class Ajax{
 
 
 
-    async json(url,data={}){
-        data.session_token = this.session_token;
-        var query = [];
-        for (var key in data) {
-            query.push(encodeURIComponent(key) + '=' + encodeURIComponent(data[key]));
-        }
-
-        const result = await this.go(url,query.join('&'));
+    async json(url, data={}, request_options={}){
+        const result = await this.go(url, data, 'POST', request_options);
         try{
             return JSON.parse(result);
         } catch (err){
@@ -132,8 +181,8 @@ class Ajax{
 
     }
 
-    async post(url,data){
-        return await this.json(url,data);
+    async post(url, data, request_options={}){
+        return await this.json(url, data, request_options);
     }
 
     async form(url,formData){

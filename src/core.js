@@ -602,7 +602,7 @@ class Webslinger{
 
     async render (template, data = {}) {
         const exists = (this.template_cache[template] !== undefined);
-        const result = (!exists) ? await this.ajax.go(`/${this.template_dir}/${template}.html?${this.session_token}`, {}, 'GET') : this.template_cache[template];
+        const result = (!exists) ? await this.ajax.go(`/${this.template_dir}/${template}.html`, {}, 'GET') : this.template_cache[template];
         this.template_cache[template] = result;
         const thisTemplate = Template(result);
         var content = thisTemplate.interpolate(data, template);
