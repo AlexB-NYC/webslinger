@@ -1,3 +1,7 @@
+import { create_logger } from './logger.js';
+
+const logger = create_logger('PIN');
+
 class PINCODE {
     constructor() {
       this.PINS = [];
@@ -12,12 +16,12 @@ class PINCODE {
       this.pinHandlers = [];
 
       this.mask = true;
-    
+
       this.html = `<div class="pin_entry_message">Enter pin:</div><div class="pin_row"><div class="${this.pin_class} active_pin"></div><div class="${this.pin_class}"></div><div class="${this.pin_class}"></div><div class="${this.pin_class}"></div><div class="${this.pin_class}"></div><div class="${this.pin_class}"></div><input type="number" pattern="\\d\\*" class="mobile_${this.pin_class}" id="mobile_${this.pin_class}"></div>`;
       this.new = `<div class="pin_block"><div class="pin_entry_message">Create pin:</div><div class="pin_row"><div class="${this.pin_class} active_pin"></div><div class="${this.pin_class}"></div><div class="${this.pin_class}"></div><div class="${this.pin_class}"></div><div class="${this.pin_class}"></div><div class="${this.pin_class}"></div></div><div class="pin_block"><div class="pin_entry_message" style="margin-top:15px;">Confirm pin:</div><div class="pin_row"><div class="${this.pin_class}"></div><div class="${this.pin_class}"></div><div class="${this.pin_class}"></div><div class="${this.pin_class}"></div><div class="${this.pin_class}"></div><div class="${this.pin_class}"></div><input type="number" pattern="\\d\\*" class="mobile_${this.pin_class}"></div><input type="number" pattern="\\d\\*" class="mobile_${this.pin_class}"></div></div>`;
     }
 
-  
+
     init(create=false,callback = null) {
         return new Promise((resolve, reject) => {
             this.init_resolve = resolve;
@@ -25,8 +29,8 @@ class PINCODE {
             this.callback = callback;
             this.create = create;
 
-            if (true) {  
-                const pin_input = document.getElementsByClassName(`mobile_${this.pin_class}`)[0]; 
+            if (true) {
+                const pin_input = document.getElementsByClassName(`mobile_${this.pin_class}`)[0];
                 const pins = [...document.getElementsByClassName(this.pin_class)];
                 this.pinClickHandler = (pin_box) => {
                     return () => {
@@ -46,7 +50,7 @@ class PINCODE {
             }
         });
     }
-    
+
     async mobileInput(e) {
             let pins = document.getElementsByClassName(this.pin_class);
             let thisPIN;
@@ -59,7 +63,7 @@ class PINCODE {
                 this.PINS[this.active] = newChar;
                 thisPIN.innerHTML = this.pin_mask || newChar.toUpperCase();
                 ++this.active;
-    
+
                 if (this.active <= pin_limit) {
                     pins[this.active].classList.add(this.active_class);
                 } else {
@@ -83,9 +87,9 @@ class PINCODE {
                 pins[this.active].classList.add(this.active_class);
             }
         }
-    
-    
-    
+
+
+
     reset() {
         const pins = [...document.getElementsByClassName(this.pin_class)];
         pins.forEach((pin_box, index) => {
@@ -104,32 +108,36 @@ class PINCODE {
         this.PINS = [];
         this.active = 0;
         this.disable_inputs();
-        
+
     }
 
     disable_inputs(disabled=true){
         const inputs = [...document.getElementsByTagName('input')];
+        let affected_count = 0;
         for (const input of inputs){
-            console.log(input.type);
             switch(input.type){
                 case 'text':
                 case 'number':
                     if(input.id !== 'mobile_pin_input'){
                         input.disabled = disabled;
+                        affected_count++;
                     }
-                    
+
             }
         }
+        logger.debug('Page inputs toggled', {
+            disabled,
+            affected_count,
+        });
     }
 
-    
-    
-  
+
+
+
     async input(e) {
         let pins = document.getElementsByClassName(this.pin_class);
         let thisPIN;
         const pin_limit = (this.create) ? 11 : 5;
-        // console.log(e.key);
         switch (e.key) {
             case 'Backspace':
             case 'ArrowLeft':
@@ -153,7 +161,7 @@ class PINCODE {
                 }
                 break;
             case 'Enter':
-                
+
                 break;
             default:
                 // Place PIN code regex check here
@@ -163,32 +171,32 @@ class PINCODE {
                     this.PINS[this.active] = e.key;
                     thisPIN.innerHTML = this.pin_mask || e.key.toUpperCase();
                     ++this.active;
-                    
+
                     const pin_action = this.submit();
                     if(this.active > pin_limit){
 
                         const pin_string = await pin_action(this.callback);
                         this.init_resolve(pin_string);
-                    } else { 
+                    } else {
                         pins[this.active].classList.add(this.active_class);
                     }
                 }
                 break;
         }
     }
-    
-  
+
+
     submit() {
         return (async () => {
             const PINCODE = [];
             const pins = this.PINS;
-    
+
             for (let i = 0; i < 6; i++) {
                 PINCODE.push(pins[i]);
             }
-    
+
             const pin_string = PINCODE.join('');
-            
+
             // Check if we're in create mode to handle the confirmation PIN
             if (this.create) {
                 const CONFIRM_PIN = [];
@@ -202,9 +210,9 @@ class PINCODE {
             }
         }).bind(this);
     }
-    
-    
+
+
   }
-  
+
 
   export default PINCODE;

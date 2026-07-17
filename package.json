@@ -1,0 +1,14 @@
+{
+  "name": "webslinger",
+  "version": "0.2.1",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "test": "node --test tests/*.test.mjs",
+    "verify": "npm run build && npm test"
+  },
+  "devDependencies": {
+    "esbuild": "^0.28.1"
+  }
+}

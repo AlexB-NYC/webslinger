@@ -1,13 +1,17 @@
+import { create_logger } from './logger.js';
+
+const logger = create_logger('Dataman');
+
 class Dataman {
     constructor(){
         this.gen = {
             token:this.token
-        }  
+        }
 
         this.parse = {
             json:this.parse_json
         }
-        
+
     };
 
     parse_json(str){
@@ -19,10 +23,12 @@ class Dataman {
     }
 
     b64_decode = (str)=>{
-      console.log(str);
+      logger.debug('Base64 string decoded', {
+        encoded_size: str?.length ?? 0,
+      });
       return new TextDecoder().decode(Uint8Array.from(atob(str), c => c.charCodeAt(0)));
     }
-    
+
     b64_encode = (str)=>{
       return btoa(new TextDecoder('utf-8').decode(new TextEncoder().encode(str)));
     }
@@ -34,7 +40,9 @@ class Dataman {
 
     jsonify = (form)=> {
         if (typeof form === "string"){
-          console.log("CSS SELECTOR");
+          logger.debug('Form selector received', {
+            selector_length: form.length,
+          });
          }
         const obj = {};
         const others = Array();
@@ -54,7 +62,6 @@ class Dataman {
             } else if (element.type == ('select-multiple')){
               obj[name] = JSON.stringify(self.getSelectValues(element));
             } else if (element.classList.contains('dynamic_add')){
-              // console.log(element);
               dynamic_add.push(element.value);
             } else {
               if( name ) {
@@ -68,27 +75,30 @@ class Dataman {
 
     sha256 = async (message)=>{
         // encode as UTF-8
-        const msgBuffer = new TextEncoder().encode(message);                    
-    
+        const msgBuffer = new TextEncoder().encode(message);
+
         // hash the message
         const hashBuffer = await crypto.subtle.digest('SHA-256', msgBuffer);
-    
+
         // convert ArrayBuffer to Array
         const hashArray = Array.from(new Uint8Array(hashBuffer));
-    
-        // convert bytes to hex string                  
+
+        // convert bytes to hex string
         const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
         return hashHex;
     }
 
-    token(){        
-        return Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);          
+    token(){
+        return Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
     }
 
     obj_blob(obj) {
       const jsonString = JSON.stringify(obj);
-      console.log(jsonString);
-      const blob = new Blob([jsonString], { type: 'application/json' }); 
+      logger.debug('Object converted to JSON blob', {
+        key_count: obj && typeof obj === 'object' ? Object.keys(obj).length : 0,
+        json_size: jsonString.length,
+      });
+      const blob = new Blob([jsonString], { type: 'application/json' });
       return blob;
   }
 

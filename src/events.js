@@ -1,3 +1,7 @@
+import { create_logger } from './logger.js';
+
+const logger = create_logger('Events');
+
 // /lib/js/events.js
 export default class Events {
   constructor(namespace = "") {
@@ -63,7 +67,6 @@ export default class Events {
   }
 
   emit(event, ...args) {
-    // console.log({event});
     let ok = false;
     const key = this._key(event);
 
@@ -72,11 +75,18 @@ export default class Events {
       if (!set || set.size === 0) return false;
       [...set].forEach(fn => {
         try { fn(...args); }
-        catch (e) { console.error("Events listener error", { event: k, e }); }
+        catch (error) {
+          logger.error('Listener failed', { event: k, error });
+        }
       });
       return true;
     };
-    console.log({key,call});
+    logger.debug('Event emitted', {
+      event: key,
+      listener_count: this._map.get(key)?.size ?? 0,
+      wildcard_listener_count: this._map.get(this._key("*"))?.size ?? 0,
+      argument_count: args.length,
+    });
 
     // internal listeners
     ok = call(key) || ok;
@@ -91,8 +101,8 @@ export default class Events {
           detail: args.length <= 1 ? args[0] : args
         })
       );
-    } catch (e) {
-      console.error("Events DOM dispatch error", { event: key, e });
+    } catch (error) {
+      logger.error('DOM dispatch failed', { event: key, error });
     }
 
     return ok;
@@ -103,9 +113,16 @@ export default class Events {
     const key = this._key(event);
     const set = this._map.get(key);
     if (!set || set.size === 0) return false;
+    logger.debug('Async event emitted', {
+      event: key,
+      listener_count: set.size,
+      argument_count: args.length,
+    });
     await Promise.all([...set].map(async fn => {
       try { return await fn(...args); }
-      catch (e) { console.error("Events async listener error", { event: key, e }); }
+      catch (error) {
+        logger.error('Async listener failed', { event: key, error });
+      }
     }));
     return true;
   }

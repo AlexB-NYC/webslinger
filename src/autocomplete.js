@@ -1,3 +1,7 @@
+import { create_logger } from './logger.js';
+
+const logger = create_logger('Autocomplete');
+
 class Autocomplete {
     constructor(haystack, needle, internal = true, threshold = 0,filter=true) {
         this.haystack = haystack;
@@ -10,7 +14,11 @@ class Autocomplete {
     }
 
     init = (callback=null) => {
-        console.log(this);
+        logger.info('Initialized', {
+            haystack_size: this.haystack?.length ?? 0,
+            threshold: this.threshold,
+            internal: this.internal,
+        });
         this.callback = callback;
         this.needle.addEventListener('input', this.check);
         this.needle.addEventListener('keydown', this.navigate);
@@ -33,8 +41,6 @@ class Autocomplete {
         const value = this.needle.value;
         if (value.length >= this.threshold) {
 
-        console.log({value});
-
             if (this.displayed) {
                 this.container.innerHTML = '';
             } else {
@@ -46,6 +52,11 @@ class Autocomplete {
             const filtered_haystack = this.haystack.filter(item =>
                 item.toLowerCase().includes(value.toLowerCase())
             );
+            logger.debug('Suggestions updated', {
+                query_length: value.length,
+                result_count: filtered_haystack.length,
+                initial_check: true,
+            });
             this.disp(filtered_haystack);
 
             if (filtered_haystack.length === 1) {
@@ -65,8 +76,6 @@ class Autocomplete {
         const value = e.target.value;
         if (value.length >= this.threshold) {
 
-        console.log({value});
-
             if (this.displayed) {
                 this.container.innerHTML = '';
             } else {
@@ -78,6 +87,11 @@ class Autocomplete {
             const filtered_haystack = this.haystack.filter(item =>
                 item.toLowerCase().includes(value.toLowerCase())
             );
+            logger.debug('Suggestions updated', {
+                query_length: value.length,
+                result_count: filtered_haystack.length,
+                initial_check: false,
+            });
             this.disp(filtered_haystack);
 
             if (filtered_haystack.length === 1) {
@@ -163,6 +177,9 @@ class Autocomplete {
 
     select = (e) => {
         this.needle.value = e.target.textContent;
+        logger.info('Suggestion selected', {
+            selected_length: this.needle.value.length,
+        });
         if (this.container) {
             this.container.remove();
             this.container = null;

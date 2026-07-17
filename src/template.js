@@ -1,3 +1,7 @@
+import { create_logger } from './logger.js';
+
+const logger = create_logger('Template');
+
 export function Template(str) {
     const stringObj = new String(str);
     return new Proxy(stringObj, {
@@ -7,7 +11,7 @@ export function Template(str) {
             try {
               let parser = new DOMParser();
               let doc = parser.parseFromString(target, 'text/html');
-  
+
               let elements = doc.querySelectorAll('[data-access]');
               elements.forEach(element => {
                 let access = element.getAttribute('data-access');
@@ -15,16 +19,16 @@ export function Template(str) {
                   element.parentNode.removeChild(element);
                 }
               });
-  
+
               let serializer = new XMLSerializer();
               let preInterpolatedString = serializer.serializeToString(doc);
-  
+
               preInterpolatedString = preInterpolatedString.replace(/<!DOCTYPE html>.*<body>/, '');
               preInterpolatedString = preInterpolatedString.replace(/<\/body>.*<\/html>/, '');
-  
+
               const names = Object.keys(params);
               const vals = Object.values(params);
-  
+
               const scope = new Proxy(Object.assign({}, params), {
                 has() { return true; }, // prevents ReferenceError for missing identifiers
                 get(obj, prop) {
@@ -37,17 +41,21 @@ export function Template(str) {
               const parsed_template = new Function('scope', `with (scope) { return \`${preInterpolatedString}\`; }`)(scope);
               return parsed_template;
             } catch (error) {
-              window.console.log('INTERPOLATION ERROR', error);
+              logger.error('Interpolation failed', {
+                template,
+                source_size: String(target).length,
+                error,
+              });
             }
           };
         }
-  
+
         if (typeof target[prop] === 'function') {
           return target[prop].bind(target);
         }
-  
+
         return target[prop];
       },
     });
   }
-  
+
