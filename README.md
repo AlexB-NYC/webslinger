@@ -18,6 +18,12 @@ Pull requests into `development` build and verify the bundles. Every push to the
 
 Development diagnostics use the format `[Webslinger][Component][LEVEL] Event` and avoid logging payloads, encryption material, session tokens, clipboard contents, and other sensitive values.
 
+## Passkeys
+
+Webslinger includes a browser-focused Passkey capability at `webslinger.passkey` for provider-independent WebAuthn registration and authentication ceremonies. It exposes `supported()`, `platform_available()`, `conditional_mediation_available()`, `parse_creation_options()`, `parse_request_options()`, `create()`, `get()`, and `serialize()`.
+
+Registration and authentication both require server-generated public-key options, including fresh challenges and relying-party settings. Webslinger does not generate challenges, verify assertions, store credentials, or expose biometric information; private keys remain with the authenticator. See [the passkey guide](docs/passkeys.md) for API examples, compatibility notes, and server-side responsibilities.
+
 ## Request options
 
 `Ajax.go()` keeps the existing form-encoded, session-token behavior by default:

@@ -45,3 +45,35 @@ test('minified bundle is smaller than the standard bundle', async () => {
     const minified = await stat(path.join(dist_dir, 'webslinger.min.js'));
     assert.ok(minified.size < standard.size);
 });
+
+const package_json = JSON.parse(await readFile(path.join(repo_root, 'package.json'), 'utf8'));
+
+test('each bundle banner reports the package version and includes Passkey capability', async () => {
+    for (const filename of output_names) {
+        const source = await read_output(filename);
+        assert.match(source, new RegExp(`Webslinger v${package_json.version.replaceAll('.', '\\.')}`));
+        assert.match(source, /passkey/);
+        assert.match(source, /Passkey/);
+    }
+});
+
+test('Webslinger instances expose passkey capability', async () => {
+    const source = await read_output('webslinger.dev.js');
+    const storage = new Map();
+    const context = vm.createContext({
+        console,
+        sessionStorage: { getItem: (key) => storage.get(key) ?? null, setItem: (key, value) => storage.set(key, String(value)) },
+        window: { addEventListener() {} },
+        document: { readyState: 'complete', querySelectorAll: () => [] },
+        queueMicrotask: () => {},
+        navigator: { credentials: { create() {}, get() {} } },
+        PublicKeyCredential: function PublicKeyCredential() {},
+        isSecureContext: true,
+    });
+    context.globalThis = context;
+    context.window = { ...context.window, Webslinger: undefined };
+    vm.runInContext(source, context, { filename: 'webslinger.dev.js' });
+    const instance = new context.Webslinger();
+    assert.equal(typeof instance.passkey.supported, 'function');
+    assert.equal(instance.passkey.supported(), true);
+});
