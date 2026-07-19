@@ -4,6 +4,7 @@ import Ajax from './ajax.js';
 import {Template} from './template.js';
 import Quantum from './quantum.js';
 import Cipher from './cipher.js';
+import Passkey from './passkey.js';
 import PINCODE from './pin.js';
 import Autocomplete from './autocomplete.js';
 import Events from './events.js';
@@ -31,6 +32,8 @@ class Webslinger{
         this.quantum = new Quantum(this.session_token);
 
         this.cipher = new Cipher();
+
+        this.passkey = new Passkey();
 
         this.pin = new PINCODE();
 
